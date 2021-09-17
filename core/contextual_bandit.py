@@ -231,7 +231,7 @@ def realworld_contextual_bandit_runner(algos, dataset, data, \
         opt_vals = np.max(cmab.test_mean_rewards, axis=1) 
         opt_actions = np.argmax(cmab.test_mean_rewards, axis=1) 
 
-        for i in tqdm(range(cmab.num_contexts)):
+        for i in tqdm(range(cmab.num_contexts),ncols=75):
             start_time = timeit()
 
             c,a,r = cmab.get_data(i) 

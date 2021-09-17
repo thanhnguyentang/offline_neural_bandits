@@ -5,6 +5,7 @@
 *.pt
 *.pth
 *.ckpt
+*.swap
 
 data/*
 results/*
