@@ -1,11 +1,128 @@
 """Define synthetic data sampler. """
 from tqdm import tqdm
 import numpy as np 
+import os
 from core.utils import sample_offline_policy, mixed_policy
+
+if __name__ == '__main__':
+    print('WARNING: This is to generate meta data for dataset generation, and should only be performed once. Quit now if you are not sure what you are doing!!!')
+    s = input('Type yesimnotstupid to proceed: ')
+    if s == 'yesimnotstupid':
+        if not os.path.exists('data/syn_meta'):
+            os.makedirs('data/syn_meta')
+
+        for sim_id in range(10):
+            np.random.seed(sim_id)
+            indices = np.random.permutation(100000)
+            np.save('data/syn_meta/indices_{}.npy'.format(sim_id), indices)
+
+            np.random.seed(sim_id)
+            test_indices = np.random.permutation(100000)
+            np.save('data/syn_meta/test_indices_{}.npy'.format(sim_id), test_indices)
+
+            np.random.seed(sim_id)
+            context_dim = 20
+            num_actions = 30
+
+            # Generate big arrays of contexts 
+            contexts = np.random.uniform(-1,1, size=(100000, context_dim))
+            contexts /= np.linalg.norm(contexts, axis=1)[:,None]
+            np.save('data/syn_meta/contexts_{}.npy'.format(sim_id), contexts) 
+
+            test_contexts = np.random.uniform(-1,1, size=(100000, context_dim))
+            test_contexts /= np.linalg.norm(test_contexts, axis=1)[:,None]
+            np.save('data/syn_meta/test_contexts_{}.npy'.format(sim_id), test_contexts) 
+
+
+            ## quadratic 
+            thetas = np.random.uniform(-1,1,size = (context_dim, num_actions)) 
+            thetas /= np.linalg.norm(thetas, axis=0)[None,:]
+            np.save('data/syn_meta/quadratic_thetas_{}.npy'.format(sim_id), thetas)
+
+            ## quadratic2 
+            A = np.random.randn(context_dim, context_dim, num_actions) 
+            np.save('data/syn_meta/quadratic2_A_{}.npy'.format(sim_id), A)
+
+            ## cosine  
+            thetas = np.random.uniform(-1,1,size=(context_dim, num_actions))  
+            thetas /= np.linalg.norm(thetas, axis=0)[None,:]
+            np.save('data/syn_meta/cosine_thetas_{}.npy'.format(sim_id), thetas)
+
 
 #================
 # Synthetic data 
 #================
+class SyntheticData(object):
+    def __init__(self, num_contexts, num_test_contexts, 
+            context_dim = 20, 
+            num_actions = 30, 
+            pi = 'eps-greedy', 
+            eps = 0.1, 
+            subset_r = 0.5, 
+            noise_std = 0.1, 
+            name='quadratic'): 
+        self.num_contexts = num_contexts 
+        self.num_test_contexts = num_test_contexts 
+        self.context_dim = context_dim
+        self.num_actions = num_actions 
+        self.pi = pi 
+        self.eps = eps 
+        self.subset_r = subset_r
+        self.num_samples = 100000
+        self.noise_std = noise_std
+        self.name = name
+
+    def reset_data(self, sim_id=0): 
+        # Load meta-data to generate dataset
+        indices = np.load('data/syn_meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/syn_meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+
+        # Generate inds
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            ind = indices[:self.num_contexts]
+        else:
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            ind = indices[i[:self.num_contexts]]
+
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
+        else:
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]] 
+
+        large_contexts =  np.load('data/syn_meta/contexts_{}.npy'.format(sim_id))
+        large_test_contexts =  np.load('data/syn_meta/test_contexts_{}.npy'.format(sim_id))
+
+        contexts = large_contexts[ind,:]
+        test_contexts = large_test_contexts[test_ind, :]
+
+        if self.name == 'quadratic':
+            thetas = np.load('data/syn_meta/quadratic_thetas_{}.npy'.format(sim_id))
+            h = lambda x: 10 * np.square(x @ thetas) # x: (None, context_dim), h: (None, num_actions)
+        elif self.name == 'quadratic2':
+            A = np.load('data/syn_meta/quadratic2_A_{}.npy'.format(sim_id))
+            h = lambda x: np.sum(np.square(x @ A), axis=0) # x: (None, context_dim), h: (None, num_actions) 
+        elif self.name == 'cosine':
+            thetas = np.load('data/syn_meta/cosine_thetas_{}.npy'.format(sim_id))
+            h = lambda x: np.cos(3 * x @ thetas) 
+        else:
+            raise ValueError
+
+        mean_rewards = h(contexts)
+        mean_test_rewards = h(test_contexts)
+
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
+        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        return dataset 
+
+###======================
+
 def sample_quadratic_data(num_contexts, num_test_contexts, \
         num_actions, context_dim, pi, eps, subset_r):
     thetas = np.random.randn(context_dim, num_actions) # can try uniform dist if have time
