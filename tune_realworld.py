@@ -2,6 +2,7 @@ import os
 import subprocess
 import time
 import argparse
+import random
 
 parser = argparse.ArgumentParser()
 
@@ -67,6 +68,7 @@ def run_exps():
     for data_type in args.data_types:
         for algo_group in args.algo_groups:
             commands += create_commands(data_type, algo_group, args.num_sim)
+    random.shuffle(commands)
     multi_gpu_launcher(commands, args.gpus, args.models_per_gpu)
 
 def collect_results():
