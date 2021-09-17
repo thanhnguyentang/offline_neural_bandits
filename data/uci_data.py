@@ -5,6 +5,28 @@ import pandas as pd
 from core.utils import sample_offline_policy
 # import tensorflow as tf
 
+if __name__ == '__main__':
+    # Generate meta data, do not run it
+    print('WARNING: This is to generate meta data for dataset generation, and should only be performed once. Quit now if you are not sure what you are doing!!!')
+    s = input('Type yesimnotstupid to proceed: ')
+    if s == 'yesimnotstupid':
+        for sim_id in range(10):
+            np.random.seed(sim_id)
+            indices = np.random.permutation(100000)
+            np.save('data/meta/indices_{}.npy'.format(sim_id), indices)
+
+            np.random.seed(sim_id)
+            test_indices = np.random.permutation(100000)
+            np.save('data/meta/test_indices_{}.npy'.format(sim_id), test_indices)
+
+            np.random.seed(sim_id)
+            context_dim = 21
+            num_actions = 8
+            betas = np.random.uniform(-1, 1, (context_dim, num_actions))
+            betas /= np.linalg.norm(betas, axis=0)
+            np.save('data/meta/betas_{}.npy'.format(sim_id), betas)
+
+
 def one_hot(df, cols):
     """Returns one-hot encoding of DataFrame df including columns in cols."""
     for col in cols:
@@ -51,17 +73,29 @@ class MushroomData(object):
         return self.df.shape[0]
 
 
-    def reset_data(self): 
-        # Generate inds 
-        if self.num_contexts <= self.num_samples:
-            self.ind = np.random.choice(range(self.num_samples), self.num_contexts, replace=False)
+    def reset_data(self, sim_id=0): 
+        # Load meta-data to generate dataset
+        indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+
+        # Generate inds
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            self.ind = indices[:self.num_contexts]
         else:
-            self.ind = np.random.choice(range(self.num_samples), self.num_contexts, replace=True)  
-        
-        if self.num_test_contexts <= self.num_samples:
-            test_ind = np.random.choice(range(self.num_samples), self.num_test_contexts, replace=False)
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            self.ind = indices[i[:self.num_contexts]]
+
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
         else:
-            test_ind = np.random.choice(range(self.num_samples), self.num_test_contexts, replace=True)
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]]
 
         contexts = self.df.iloc[self.ind, 2:].values 
         test_contexts = self.df.iloc[test_ind, 2:].values 
@@ -133,16 +167,29 @@ class JesterData(object):
     def num_samples(self):
         return self.dataset.shape[0]
 
-    def reset_data(self):
-        if self.num_contexts <= self.num_samples:
-            self.ind = np.random.choice(range(self.num_samples), self.num_contexts, replace=False)
+    def reset_data(self, sim_id=0):
+        # Load meta-data to generate dataset
+        indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+
+        # Generate inds
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            self.ind = indices[:self.num_contexts]
         else:
-            self.ind = np.random.choice(range(self.num_samples), self.num_contexts, replace=True)  
-    
-        if self.num_test_contexts <= self.num_samples:
-            test_ind = np.random.choice(range(self.num_samples), self.num_test_contexts, replace=False)
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            self.ind = indices[i[:self.num_contexts]]
+
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
         else:
-            test_ind = np.random.choice(range(self.num_samples), self.num_test_contexts, replace=True)
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]]
 
         contexts = self.dataset[self.ind, :self.context_dim]
         mean_rewards = self.dataset[self.ind, self.context_dim:] 
@@ -205,16 +252,29 @@ class StatlogData(object):
     def num_samples(self):
         return self.contexts.shape[0]
 
-    def reset_data(self):
-        if self.num_contexts <= self.num_samples:
-            ind = np.random.choice(range(self.num_samples), self.num_contexts, replace=False)
+    def reset_data(self, sim_id=0):
+        # Load meta-data to generate dataset
+        indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+
+        # Generate inds
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            self.ind = indices[:self.num_contexts]
         else:
-            ind = np.random.choice(range(self.num_samples), self.num_contexts, replace=True)  
-    
-        if self.num_test_contexts <= self.num_samples:
-            test_ind = np.random.choice(range(self.num_samples), self.num_test_contexts, replace=False)
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            self.ind = indices[i[:self.num_contexts]]
+
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
         else:
-            test_ind = np.random.choice(range(self.num_samples), self.num_test_contexts, replace=True)
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]]
 
         contexts, mean_rewards = self.contexts[ind,:], self.mean_rewards[ind,:] 
         test_contexts, mean_test_rewards = self.contexts[test_ind,:], self.mean_rewards[test_ind,:]
@@ -271,19 +331,33 @@ class CoverTypeData(object):
             name, num_actions, self.num_samples, context_dim, reward_type
         ))
 
-    def reset_data(self):
-        if self.num_contexts <= self.num_samples:
-            ind = np.random.choice(range(self.num_samples), self.num_contexts, replace=False)
-        else:
-            ind = np.random.choice(range(self.num_samples), self.num_contexts, replace=True)  
-    
-        if self.num_test_contexts <= self.num_samples:
-            test_ind = np.random.choice(range(self.num_samples), self.num_test_contexts, replace=False)
-        else:
-            test_ind = np.random.choice(range(self.num_samples), self.num_test_contexts, replace=True)
+    def reset_data(self, sim_id=0):
+        # Load meta-data to generate dataset
+        indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
 
-        contexts = self.contexts[ind,:] 
-        mean_rewards = self.rewards[ind,:] 
+        # Generate inds
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            self.ind = indices[:self.num_contexts]
+        else:
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            self.ind = indices[i[:self.num_contexts]]
+
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
+        else:
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]]
+
+
+        contexts = self.contexts[self.ind,:] 
+        mean_rewards = self.rewards[self.ind,:] 
         test_contexts = self.contexts[test_ind,:]
         mean_test_rewards = self.rewards[test_ind,:]
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
@@ -293,6 +367,95 @@ class CoverTypeData(object):
     @property 
     def num_samples(self):
         return self.contexts.shape[0]
+
+
+
+class StockData(object):
+    def __init__(self, 
+                num_contexts, 
+                num_test_contexts, 
+                num_actions = 8, 
+                noise_std=0.1, 
+                shuffle_rows=True,
+                pi = 'eps-greedy', 
+                eps = 0.1, 
+                subset_r = 0.5
+                ): 
+        filename = 'data/raw_stock_contexts'
+        self.num_contexts = num_contexts 
+        self.num_test_contexts = num_test_contexts
+        self.num_actions = num_actions 
+
+        self.noise_std = noise_std
+        self.shuffle_rows = shuffle_rows
+        self.pi = pi
+        self.eps = eps
+        self.subset_r = subset_r
+
+
+        with open(filename, 'r') as f:
+            contexts = np.loadtxt(f, skiprows=1)
+
+        if shuffle_rows:
+            np.random.shuffle(contexts)
+
+        self.contexts = contexts
+        self.context_dim = contexts.shape[1]
+
+        print('Stock: num_samples: {}'.format(self.num_samples)) 
+
+    @property 
+    def num_samples(self): 
+        return len(self.contexts)
+
+
+    def reset_data(self, sim_id=0): 
+        # Load meta-data to generate dataset
+        indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        self.betas = np.load('data/meta/betas_{}.npy'.format(sim_id))
+
+        # Generate inds 
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            self.ind = indices[:self.num_contexts]
+        else:
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            self.ind = indices[i[:self.num_contexts]]
+        
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
+        else:
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]]
+
+        contexts = self.contexts[self.ind,:] 
+        test_contexts = self.contexts[test_ind,:]
+        # Compute rewards
+        mean_rewards = np.dot(contexts, self.betas) # (num_contexts, num_actions)
+        mean_test_rewards = np.dot(test_contexts, self.betas) # (num_contexts, num_actions)
+
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
+        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        return dataset 
+
+
+    def reset_rewards(self):
+        contexts = self.contexts[self.ind]
+
+        # Compute rewards
+        mean_rewards = np.dot(contexts, self.betas) # (num_contexts, num_actions)
+        noise = np.random.normal(scale=self.noise_std, size=mean_rewards.shape)
+        rewards = mean_rewards + noise
+    
+        return rewards
+
+
 
 #==================================
 #==================================

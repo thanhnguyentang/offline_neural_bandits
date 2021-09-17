@@ -13,7 +13,7 @@ from algorithms.kern_lcb import KernLCB
 from algorithms.uniform_sampling import UniformSampling
 from algorithms.neural_lin_lcb import ExactNeuralLinLCBV2, ExactNeuralLinGreedyV2, ApproxNeuralLinLCBV2, ApproxNeuralLinGreedyV2
 from data.synthetic_data import sample_quadratic_data, sample_quadratic2_data, sample_cosine_data, sample_latent_manifold_data
-from data.uci_data import MushroomData, JesterData, StatlogData, CoverTypeData
+from data.uci_data import *
 
 from absl import flags, app
 import os 
@@ -64,38 +64,17 @@ def main(unused_argv):
     elif FLAGS.policy == 'subset':
         policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.subset_ratio)
 
-    if FLAGS.data_type == 'mushroom': 
-        data = MushroomData(num_contexts=FLAGS.num_contexts, 
+    dataclasses = {'mushroom':MushroomData, 'jester':JesterData, 'statlog':StatlogData, 'covertype':CoverTypeData, 'stock': StockData}
+    if FLAGS.data_type in dataclasses:
+        DataClass = dataclasses[FLAGS.data_type]
+        data = DataClass(num_contexts=FLAGS.num_contexts, 
                     num_test_contexts=FLAGS.num_test_contexts,
                     pi = FLAGS.policy, 
                     eps = FLAGS.eps, 
                     subset_r = FLAGS.subset_r) 
+    else:
+        raise NotImplementedError
 
-    if FLAGS.data_type == 'jester':
-        data = JesterData(num_contexts=FLAGS.num_contexts, 
-                    num_test_contexts=FLAGS.num_test_contexts,
-                    noise_std = FLAGS.noise_std, 
-                    pi = FLAGS.policy, 
-                    eps = FLAGS.eps, 
-                    subset_r = FLAGS.subset_r) 
-
-    if FLAGS.data_type == 'statlog':
-        data = StatlogData(num_contexts=FLAGS.num_contexts, 
-                    num_test_contexts=FLAGS.num_test_contexts,
-                    pi = FLAGS.policy, 
-                    eps = FLAGS.eps, 
-                    subset_r = FLAGS.subset_r,
-                    noise_std = 0,
-                    ) 
-    
-    if FLAGS.data_type == 'covertype':
-        data = CoverTypeData(num_contexts=FLAGS.num_contexts, 
-                    num_test_contexts=FLAGS.num_test_contexts,
-                    pi = FLAGS.policy, 
-                    eps = FLAGS.eps, 
-                    subset_r = FLAGS.subset_r,
-                    noise_std = 0,
-                    ) 
 
     dataset = data.reset_data()
     context_dim = dataset[0].shape[1] 
@@ -141,17 +120,6 @@ def main(unused_argv):
 
     if not os.path.exists(res_dir):
         os.makedirs(res_dir)
-    dataset_filename = os.path.join(res_dir, 'dataset.npz') 
-
-    if os.path.exists(dataset_filename):
-        print('Load dataset from {}'.format(dataset_filename)) 
-        dt = np.load(dataset_filename) 
-        contexts, actions, mean_rewards, test_contexts, test_mean_rewards = \
-            dt['arr_0'], dt['arr_1'], dt['arr_2'], dt['arr_3'], dt['arr_4']
-        dataset = (contexts, actions, mean_rewards, test_contexts, test_mean_rewards) # overload dataset 
-
-    else:
-        np.savez(dataset_filename, *dataset)  
 
        
 
