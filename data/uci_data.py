@@ -147,11 +147,6 @@ class JesterData(object):
 
         assert context_dim + num_actions == self.dataset.shape[1]
 
-        # if shuffle_cols:
-        #     dataset = dataset[:, np.random.permutation(dataset.shape[1])]
-        # if shuffle_rows:
-        #     np.random.shuffle(dataset)
-
         ## Meta-info 
         self.num_contexts = num_contexts 
         self.num_test_contexts = num_test_contexts
@@ -219,7 +214,6 @@ class StatlogData(object):
             eps = 0.1, 
             subset_r = 0.5,
             remove_underrepresented=False, 
-            shuffle_rows=False # @thanhnt: careful, setting it to True changes the order of rows each time the data is loaded.
         ):
         self.name = 'statlog'
         file_name = 'data/shuttle.trn'
@@ -237,8 +231,6 @@ class StatlogData(object):
         self.subset_r = subset_r
         self.noise_std = noise_std
 
-        if shuffle_rows:
-            np.random.shuffle(dataset)
 
         contexts = dataset[: :-1]
         labels = dataset[:, -1].astype(int) - 1
@@ -297,8 +289,7 @@ class CoverTypeData(object):
             pi = 'eps-greedy', 
             eps = 0.1, 
             subset_r = 0.5,
-            remove_underrepresented=False, 
-            shuffle_rows=False # @thanhnt: careful, setting it to True changes the order of rows each time the data is loaded.
+            remove_underrepresented=False 
         ):
         self.name = 'covertype'
         file_name = 'data/covtype.data'
@@ -316,8 +307,6 @@ class CoverTypeData(object):
         self.noise_std = noise_std
 
             
-        if shuffle_rows:
-            df = df.sample(frac=1)
         # data = df.iloc[:num_contexts, :]
 
         # Assuming what the paper calls response variable is the label?
@@ -379,7 +368,6 @@ class StockData(object):
                 num_test_contexts, 
                 num_actions = 8, 
                 noise_std=0.1, 
-                shuffle_rows=False, # @thanhnt: careful, setting it to True changes the order of rows each time the data is loaded.
                 pi = 'eps-greedy', 
                 eps = 0.1, 
                 subset_r = 0.5
@@ -391,7 +379,6 @@ class StockData(object):
         self.num_actions = num_actions 
 
         self.noise_std = noise_std
-        self.shuffle_rows = shuffle_rows
         self.pi = pi
         self.eps = eps
         self.subset_r = subset_r
@@ -399,9 +386,6 @@ class StockData(object):
 
         with open(filename, 'r') as f:
             contexts = np.loadtxt(f, skiprows=1)
-
-        if shuffle_rows:
-            np.random.shuffle(contexts)
 
         self.contexts = contexts
         self.context_dim = contexts.shape[1]
@@ -616,369 +600,7 @@ class CensusData(object):
         dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
         return dataset 
     
-#==================================
-#==================================
-def sample_mushroom_data(file_name,
-                    num_contexts,
-                    r_noeat=0,
-                    r_eat_safe=5,
-                    r_eat_poison_bad=-35,
-                    r_eat_poison_good=5,
-                    prob_poison_bad=0.5,
-                    p_opt = 0, 
-                    p_uni = 1, 
-                    verbose=True):
-    """Samples bandit game from Mushroom UCI Dataset.
-    Args:
-        file_name: Route of file containing the original Mushroom UCI dataset.
-        num_contexts: Number of points to sample, i.e. (context, action, rewards).
-        r_noeat: Reward for not eating a mushroom.
-        r_eat_safe: Reward for eating a non-poisonous mushroom.
-        r_eat_poison_bad: Reward for eating a poisonous mushroom if harmed.
-        r_eat_poison_good: Reward for eating a poisonous mushroom if not harmed.
-        prob_poison_bad: Probability of being harmed by eating a poisonous mushroom.
-        p_opt: Probability of selecting an optimal action in the offline data. 
-        p_uni: Probability of selecting an uniformly generated action in the offline data.
-    Returns:
-        contexts: An array of sampled contexts. 
-        reward: A matrix of random reward for no_eat and eat (no_eat = 0, eat = 1)
-        off_action: A matrix of offline actions
-        exp_reward: A matrix of expected reward for no_eat and eat action. 
-    We assume r_eat_safe > r_noeat, and r_eat_poison_good > r_eat_poison_bad.
-    """
-    assert p_uni + p_opt <= 1 
 
-    # first two cols of df encode whether mushroom is edible or poisonous
-    num_actions = 2 # no_eat vs eat 
-
-    df = pd.read_csv(file_name, header=None)
-    df = one_hot(df, df.columns)
-    ind = np.random.choice(range(df.shape[0]), num_contexts, replace=False)
-
-    contexts = df.iloc[ind, 2:].values
-
-    if verbose:
-        print('mushroom: total_samples : {} | num_actions: {} | context_dim: {} | reward_type: stochastic'.format(
-            df.shape[0], num_actions, contexts.shape[1]))
-
-    no_eat_reward = r_noeat * np.ones((num_contexts, 1))
-
-
-    random_poison = np.random.choice([r_eat_poison_bad, r_eat_poison_good],
-        p=[prob_poison_bad, 1 - prob_poison_bad],
-        size=num_contexts)
-    eat_reward = r_eat_safe * df.iloc[ind, 0]
-    eat_reward += np.multiply(random_poison, df.iloc[ind, 1])
-    eat_reward = eat_reward.values.reshape((num_contexts, 1))
-
-    # Compute expected reward for each action 
-    exp_eat_poison_reward = r_eat_poison_bad * prob_poison_bad + r_eat_poison_good * (1 - prob_poison_bad)
-    exp_eat_reward = r_eat_safe * df.iloc[ind, 0] + np.multiply(exp_eat_poison_reward, df.iloc[ind, 1])
-    exp_eat_reward = exp_eat_reward.values.reshape((num_contexts, 1))
-
-    mean_rewards = np.hstack((no_eat_reward, exp_eat_reward))
-
-    # Generate offline actions 
-    actions = sample_offline_policy(mean_rewards, num_contexts, num_actions, pi, eps, subset_r)
-
-    dataset = (contexts, actions, mean_rewards, test_contexts, test_mean_rewards) 
-
-    return contexts, np.hstack((no_eat_reward, eat_reward)), off_action, exp_reward
-
-def sample_statlog_data(file_name, num_contexts, shuffle_rows=True,
-                        remove_underrepresented=False, p_opt=0.1, p_uni=0.1, verbose=True):
-    """Returns bandit problem dataset based on the UCI statlog data.
-    Args:
-        file_name: Route of file containing the Statlog dataset.
-        num_contexts: Number of contexts to sample.
-        shuffle_rows: If True, rows from original dataset are shuffled.
-        remove_underrepresented: If True, removes arms with very few rewards.
-    Returns:
-        dataset: Sampled matrix with rows: (context, action rewards).
-        opt_vals: Vector of deterministic optimal (reward, action) for each context.
-    https://archive.ics.uci.edu/ml/datasets/Statlog+(Shuttle)
-    """
-
-    with open(file_name, 'r') as f:
-        data = np.loadtxt(f)
-
-    ## Meta-info 
-    name = 'statlog'
-    num_actions = 7  # some of the actions are very rarely optimal.
-    num_samples = data.shape[0] 
-    context_dim = 9
-    reward_type = 'deterministic' 
-    if verbose: 
-        print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
-            name, num_actions, num_samples, context_dim, reward_type
-        ))
-
-    # Shuffle data
-    if shuffle_rows:
-        np.random.shuffle(data)
-    data = data[:num_contexts, :]
-
-    # Last column is label, rest are features
-    contexts = data[:, :-1]
-    labels = data[:, -1].astype(int) - 1  # convert to 0 based index
-
-    if remove_underrepresented:
-        contexts, labels = remove_underrepresented_classes(contexts, labels)
-
-    contexts, rewards = classification_to_bandit_problem(contexts, labels, num_actions)
-    
-    exp_rewards = rewards 
-    # Generate offline actions 
-    off_action = mixed_policy(num_actions, exp_rewards, p_opt, p_uni)
-
-    return contexts, rewards, off_action, exp_rewards
-
-def sample_adult_data(file_name, num_contexts, shuffle_rows=True,
-                      remove_underrepresented=False, p_opt=0.1, p_uni=0.1, verbose=True):
-    """Returns bandit problem dataset based on the UCI adult data.
-    Args:
-        file_name: Route of file containing the Adult dataset.
-        num_contexts: Number of contexts to sample.
-        shuffle_rows: If True, rows from original dataset are shuffled.
-        remove_underrepresented: If True, removes arms with very few rewards.
-    Returns:
-        dataset: Sampled matrix with rows: (context, action rewards).
-        opt_vals: Vector of deterministic optimal (reward, action) for each context.
-    Preprocessing:
-        * drop rows with missing values
-        * convert categorical variables to 1 hot encoding
-    https://archive.ics.uci.edu/ml/datasets/census+income
-    """
-    with open(file_name, 'r') as f:
-        df = pd.read_csv(f, header=None,
-                        na_values=[' ?']).dropna()
-    num_samples = df.shape[0] 
-
-    if shuffle_rows:
-        df = df.sample(frac=1)
-    # df = df.iloc[:num_contexts, :]
-
-    labels = df[6].astype('category').cat.codes.to_numpy()
-    df = df.drop([6], axis=1)
-
-    # Convert categorical variables to 1 hot encoding
-    cols_to_transform = [1, 3, 5, 7, 8, 9, 13, 14]
-    df = pd.get_dummies(df, columns=cols_to_transform)
-
-    if remove_underrepresented:
-        df, labels = remove_underrepresented_classes(df, labels)
-    contexts = df.to_numpy()
-
-    ## Meta-info 
-    name = 'adult'
-    num_actions = 14  # some of the actions are very rarely optimal.
-    context_dim = contexts.shape[1]
-    reward_type = 'deterministic' 
-    if verbose: 
-        print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
-            name, num_actions, num_samples, context_dim, reward_type
-        ))
-
-    contexts, rewards = classification_to_bandit_problem(contexts[:num_contexts], labels[:num_contexts], num_actions)
-    exp_rewards = rewards 
-    # Generate offline actions 
-    off_action = mixed_policy(num_actions, exp_rewards, p_opt, p_uni)
-
-    return contexts, rewards, off_action, exp_rewards
-
-def sample_stock_data(file_name, num_contexts,
-                      sigma=0.1, shuffle_rows=True, p_opt=0.1, p_uni=0.1, verbose=True):
-    """Samples linear bandit game from stock prices dataset.
-    Args:
-        file_name: Route of file containing the stock prices dataset.
-        context_dim: Context dimension (i.e. vector with the price of each stock).
-        num_actions: Number of actions (different linear portfolio strategies).
-        num_contexts: Number of contexts to sample.
-        sigma: Vector with additive noise levels for each action.
-        shuffle_rows: If True, rows from original dataset are shuffled.
-    Returns:
-        dataset: Sampled matrix with rows: (context, reward_1, ..., reward_k).
-        opt_vals: Vector of expected optimal (reward, action) for each context.
-    """
-
-    with open(file_name, 'r') as f:
-        contexts = np.loadtxt(f, skiprows=1)
-
-    if shuffle_rows:
-        np.random.shuffle(contexts)
-    contexts = contexts[:num_contexts, :]
-
-    ## Meta-info 
-    name = 'stock'
-    reward_type = 'stochastic' 
-    context_dim = contexts.shape[1]
-    num_actions = 8
-    if verbose: 
-        print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
-            name, num_actions, contexts.shape[0], context_dim, reward_type
-        ))
-
-    betas = np.random.uniform(-1, 1, (context_dim, num_actions))
-    betas /= np.linalg.norm(betas, axis=0)
-
-    mean_rewards = np.dot(contexts, betas) # (num_contexts, num_actions)
-    noise = np.random.normal(scale=sigma, size=mean_rewards.shape)
-    rewards = mean_rewards + noise
-
-    opt_actions = np.argmax(mean_rewards, axis=1)
-    off_action = mixed_policy(num_actions, mean_rewards, p_opt, p_uni)
-    # opt_rewards = [mean_rewards[i, a] for i, a in enumerate(opt_actions)]
-    # return np.hstack((contexts, rewards)), (np.array(opt_rewards), opt_actions)
-    return contexts, rewards, off_action, mean_rewards
-
-def sample_jester_data(file_name, num_contexts,
-                       shuffle_rows=True, shuffle_cols=False, p_opt=0.1, p_uni=0.1, verbose=True):
-    """Samples bandit game from (user, joke) dense subset of Jester dataset.
-    Args:
-        file_name: Route of file containing the modified Jester dataset.
-        context_dim: Context dimension (i.e. vector with some ratings from a user).
-        num_actions: Number of actions (number of joke ratings to predict).
-        num_contexts: Number of contexts to sample.
-        shuffle_rows: If True, rows from original dataset are shuffled.
-        shuffle_cols: Whether or not context/action jokes are randomly shuffled.
-    Returns:
-        dataset: Sampled matrix with rows: (context, rating_1, ..., rating_k).
-        opt_vals: Vector of deterministic optimal (reward, action) for each context.
-    """
-
-    with open(file_name, 'rb') as f:
-        dataset = np.load(f)
-
-    if shuffle_cols:
-        dataset = dataset[:, np.random.permutation(dataset.shape[1])]
-    if shuffle_rows:
-        np.random.shuffle(dataset)
-
-    ## Meta-info 
-    name = 'jester'
-    reward_type = 'deterministic' 
-    context_dim = 32
-    num_actions = 8
-    num_samples = dataset.shape[0]
-    if verbose: 
-        print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
-            name, num_actions, num_samples, context_dim, reward_type
-        ))
-
-    contexts = dataset[:num_contexts, :context_dim]
-    mean_rewards = dataset[:num_contexts, context_dim:] 
-
-    opt_actions = np.argmax(mean_rewards, axis=1)
-    off_action = mixed_policy(num_actions, mean_rewards, p_opt, p_uni)
-    return contexts, mean_rewards, off_action, mean_rewards
-
-def sample_census_data(file_name, num_contexts, shuffle_rows=True,
-                       remove_underrepresented=False, p_opt=0.1, p_uni=0.1, verbose=True):
-    """Returns bandit problem dataset based on the UCI census data.
-    Args:
-        file_name: Route of file containing the Census dataset.
-        num_contexts: Number of contexts to sample.
-        shuffle_rows: If True, rows from original dataset are shuffled.
-        remove_underrepresented: If True, removes arms with very few rewards.
-    Returns:
-        dataset: Sampled matrix with rows: (context, action rewards).
-        opt_vals: Vector of deterministic optimal (reward, action) for each context.
-    Preprocessing:
-        * drop rows with missing labels
-        * convert categorical variables to 1 hot encoding
-    Note: this is the processed (not the 'raw') dataset. It contains a subset
-    of the raw features and they've all been discretized.
-    https://archive.ics.uci.edu/ml/datasets/US+Census+Data+%281990%29
-    """
-    # Note: this dataset is quite large. It will be slow to load and preprocess.
-    with open(file_name, 'r') as f:
-        df = (pd.read_csv(f, header=0, na_values=['?'])
-            .dropna())
-
-
-    ## Meta-info 
-    name = 'census'
-    num_actions = 9  # some of the actions are very rarely optimal.
-    num_samples = df.shape[0] 
-    context_dim = 389 
-    reward_type = 'deterministic' 
-    if verbose: 
-        print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
-            name, num_actions, num_samples, context_dim, reward_type
-        ))
-
-    if shuffle_rows:
-        df = df.sample(frac=1)
-    df = df.iloc[:num_contexts, :]
-
-    # Assuming what the paper calls response variable is the label?
-    labels = df['dOccup'].astype('category').cat.codes.to_numpy()
-    # print(labels)
-    # In addition to label, also drop the (unique?) key.
-    df = df.drop(['dOccup', 'caseid'], axis=1)
-
-    # All columns are categorical. Convert to 1 hot encoding.
-    df = pd.get_dummies(df, columns=df.columns)
-
-    if remove_underrepresented:
-        df, labels = remove_underrepresented_classes(df, labels)
-    contexts = df.to_numpy()
-
-    contexts, rewards = classification_to_bandit_problem(contexts, labels, num_actions)
-    exp_rewards = rewards 
-    off_action = mixed_policy(num_actions, exp_rewards, p_opt, p_uni)
-    return contexts, rewards, off_action, exp_rewards
-
-def sample_covertype_data(file_name, num_contexts, shuffle_rows=True,
-                          remove_underrepresented=False, p_opt=0.1, p_uni=0.1, verbose=True):
-    """Returns bandit problem dataset based on the UCI Cover_Type data.
-    Args:
-        file_name: Route of file containing the Covertype dataset.
-        num_contexts: Number of contexts to sample.
-        shuffle_rows: If True, rows from original dataset are shuffled.
-        remove_underrepresented: If True, removes arms with very few rewards.
-    Returns:
-        dataset: Sampled matrix with rows: (context, action rewards).
-        opt_vals: Vector of deterministic optimal (reward, action) for each context.
-    Preprocessing:
-        * drop rows with missing labels
-        * convert categorical variables to 1 hot encoding
-    https://archive.ics.uci.edu/ml/datasets/Covertype
-    """
-    with open(file_name, 'r') as f:
-        df = (pd.read_csv(f, header=0, na_values=['?'])
-            .dropna())
-
-     ## Meta-info 
-    name = 'covertype'
-    num_actions = 7  # some of the actions are very rarely optimal.
-    num_samples = df.shape[0] 
-    context_dim = 54 
-    reward_type = 'deterministic' 
-    if verbose: 
-        print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
-            name, num_actions, num_samples, context_dim, reward_type
-        ))
-
-
-    if shuffle_rows:
-        df = df.sample(frac=1)
-    df = df.iloc[:num_contexts, :]
-
-    # Assuming what the paper calls response variable is the label?
-    # Last column is label.
-    labels = df[df.columns[-1]].astype('category').cat.codes.to_numpy()
-    df = df.drop([df.columns[-1]], axis=1)
-
-    # All columns are either quantitative or already converted to 1 hot.
-    if remove_underrepresented:
-        df, labels = remove_underrepresented_classes(df, labels)
-    contexts = df.to_numpy()
-
-    contexts, rewards = classification_to_bandit_problem(contexts, labels, num_actions)
-    exp_rewards = rewards 
-    off_action = mixed_policy(num_actions, exp_rewards, p_opt, p_uni)
-    return contexts, rewards, off_action, exp_rewards
 
 def classification_to_bandit_problem(contexts, labels, num_actions=None):
     """Normalize contexts and encode deterministic rewards."""
