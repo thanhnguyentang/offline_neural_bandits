@@ -3,6 +3,8 @@ import subprocess
 import time
 import argparse
 import random
+import glob
+import numpy as np
 
 parser = argparse.ArgumentParser()
 
@@ -10,9 +12,10 @@ parser.add_argument('--task', type=str, default='run_exps', choices=['run_exps',
 parser.add_argument('--data_types', nargs='+', type=str, default=['mushroom'])
 parser.add_argument('--algo_groups', nargs='+', type=str, default=['approx-neural'])
 parser.add_argument('--num_sim', type=int, default=3)
-
 parser.add_argument('--models_per_gpu', type=int, default=6)
 parser.add_argument('--gpus', nargs='+', type=int, default=[0], help='gpus indices used for multi_gpu')
+
+parser.add_argument('--result_dir', type=str, default='results/stock_d=21_a=8_pi=eps-greedy0.1_std=0.1', help='result directory for collect_results()')
 args = parser.parse_args()
 
 def multi_gpu_launcher(commands,gpus,models_per_gpu):
@@ -72,7 +75,19 @@ def run_exps():
     multi_gpu_launcher(commands, args.gpus, args.models_per_gpu)
 
 def collect_results():
-    raise NotImplementedError
+    filenames = glob.glob(os.path.join(args.result_dir,"*.npz"))
+    results = {}
+    for filename in filenames:
+        k = np.load(filename)
+        regret = k['arr_0'][:,1,:]
+        regret = np.min(regret,1) # best regret of a run
+        regret = np.mean(regret)
+        results[filename] = regret
+    
+    filenames.sort(key=lambda x: results[x])
+    
+    for filename in filenames:
+        print('{}:   {}'.format(filename,results[filename]))
 
 if __name__ == '__main__':
     eval(args.task)()
