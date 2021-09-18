@@ -64,7 +64,10 @@ def main(unused_argv):
     elif FLAGS.policy == 'subset':
         policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.subset_ratio)
 
-    dataclasses = {'mushroom':MushroomData, 'jester':JesterData, 'statlog':StatlogData, 'covertype':CoverTypeData, 'stock': StockData}
+    dataclasses = {'mushroom':MushroomData, 'jester':JesterData, 'statlog':StatlogData, 'covertype':CoverTypeData, 'stock': StockData,
+        'adult': AdultData, 'census': CensusData
+    }
+    
     if FLAGS.data_type in dataclasses:
         DataClass = dataclasses[FLAGS.data_type]
         data = DataClass(num_contexts=FLAGS.num_contexts, 

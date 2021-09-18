@@ -212,7 +212,10 @@ def realworld_contextual_bandit_runner(algos, dataset, data, \
     for sim in range(num_sim):
         # Run the offline contextual bandit in an online manner 
         print('Simulation: {}/{}'.format(sim + 1, num_sim))
-        cmab.reset_rewards() # only for independent noise data 
+        if data.name == 'mushroom':
+            cmab.set_rewards(data.reset_rewards()) # not independent noise data
+        else:
+            cmab.reset_rewards() # only for independent noise data 
         # cmab.set_rewards(rewards)
 
         # cmab.set_rewards(data.reset_rewards())

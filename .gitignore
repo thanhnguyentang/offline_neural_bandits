@@ -22,3 +22,5 @@ main.py
 *.ipynb
 dev_main.py
 !/data/meta/
+!/data/syn_meta/
+!/data/*.py
