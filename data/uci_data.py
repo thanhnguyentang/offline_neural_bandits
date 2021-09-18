@@ -53,7 +53,7 @@ class MushroomData(object):
         self.num_contexts = num_contexts 
         self.num_test_contexts = num_test_contexts
         self.num_actions = num_actions 
-
+        self.noise_std = 0 # dummy
         self.r_noeat = r_noeat 
         self.r_eat_safe = r_eat_safe 
         self.r_eat_poison_bad = r_eat_poison_bad 
@@ -216,7 +216,7 @@ class StatlogData(object):
             eps = 0.1, 
             subset_r = 0.5,
             remove_underrepresented=False, 
-            shuffle_rows=True
+            shuffle_rows=False # @thanhnt: careful, setting it to True changes the order of rows each time the data is loaded.
         ):
         file_name = 'data/shuttle.trn'
         with open(file_name, 'r') as f:
@@ -294,7 +294,7 @@ class CoverTypeData(object):
             eps = 0.1, 
             subset_r = 0.5,
             remove_underrepresented=False, 
-            shuffle_rows=True
+            shuffle_rows=False # @thanhnt: careful, setting it to True changes the order of rows each time the data is loaded.
         ):
         file_name = 'data/covtype.data'
         with open(file_name, 'r') as f:
@@ -368,15 +368,13 @@ class CoverTypeData(object):
     def num_samples(self):
         return self.contexts.shape[0]
 
-
-
 class StockData(object):
     def __init__(self, 
                 num_contexts, 
                 num_test_contexts, 
                 num_actions = 8, 
                 noise_std=0.1, 
-                shuffle_rows=True,
+                shuffle_rows=False, # @thanhnt: careful, setting it to True changes the order of rows each time the data is loaded.
                 pi = 'eps-greedy', 
                 eps = 0.1, 
                 subset_r = 0.5
@@ -456,7 +454,160 @@ class StockData(object):
         return rewards
 
 
+class AdultData(object):
+    def __init__(self, num_contexts, 
+            num_test_contexts, 
+            num_actions = 14, 
+            noise_std=0., 
+            remove_underrepresented=False,
+            pi = 'eps-greedy', 
+            eps = 0.1, 
+            subset_r = 0.5
+            ): 
+        self.num_contexts = num_contexts 
+        self.num_test_contexts = num_test_contexts
+        self.num_actions = num_actions 
 
+        self.noise_std = noise_std
+        self.pi = pi
+        self.eps = eps
+        self.subset_r = subset_r
+
+
+        file_name = 'data/adult.data'
+        with open(file_name, 'r') as f:
+            df = pd.read_csv(f, header=None, na_values=[' ?']).dropna()
+
+        labels = df[6].astype('category').cat.codes.to_numpy()
+        df = df.drop([6], axis=1)
+
+        # Convert categorical variables to 1 hot encoding
+        cols_to_transform = [1, 3, 5, 7, 8, 9, 13, 14]
+        df = pd.get_dummies(df, columns=cols_to_transform)
+
+        if remove_underrepresented:
+            df, labels = remove_underrepresented_classes(df, labels)
+        contexts = df.to_numpy()
+        self.context_dim = contexts.shape[1]
+
+        self.contexts, self.rewards = classification_to_bandit_problem(contexts, labels, num_actions)
+        print('Adult: num_samples: {}'.format(self.contexts.shape[0]))
+
+    @property
+    def num_samples(self):
+        return self.contexts.shape[0]
+    
+    def reset_data(self, sim_id=0):
+        # Load meta-data to generate dataset
+        indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+
+        # Generate inds
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            ind = indices[:self.num_contexts]
+        else:
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            ind = indices[i[:self.num_contexts]]
+
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
+        else:
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]]
+
+
+        contexts = self.contexts[ind,:] 
+        mean_rewards = self.rewards[ind,:] 
+        test_contexts = self.contexts[test_ind,:]
+        mean_test_rewards = self.rewards[test_ind,:]
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
+        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        return dataset 
+
+
+class CensusData(object):
+    def __init__(self, num_contexts, 
+            num_test_contexts, 
+            num_actions = 9, 
+            noise_std=0., 
+            remove_underrepresented=False,
+            pi = 'eps-greedy', 
+            eps = 0.1, 
+            subset_r = 0.5
+            ): 
+        self.num_contexts = num_contexts 
+        self.num_test_contexts = num_test_contexts
+        self.num_actions = num_actions 
+
+        self.noise_std = noise_std
+        self.pi = pi
+        self.eps = eps
+        self.subset_r = subset_r
+
+        file_name = 'data/USCensus1990.data.txt'
+        with open(file_name, 'r') as f:
+            df = (pd.read_csv(f, header=0, na_values=['?']).dropna())
+
+        # Assuming what the paper calls response variable is the label?
+        labels = df['dOccup'].astype('category').cat.codes.to_numpy()
+        # print(labels)
+        # In addition to label, also drop the (unique?) key.
+        df = df.drop(['dOccup', 'caseid'], axis=1)
+
+        # All columns are categorical. Convert to 1 hot encoding.
+        df = pd.get_dummies(df, columns=df.columns)
+
+        if remove_underrepresented:
+            df, labels = remove_underrepresented_classes(df, labels)
+        contexts = df.to_numpy()
+        self.contexts, self.rewards = classification_to_bandit_problem(contexts, labels, num_actions)
+        self.context_dim = self.contexts.shape[1] # 389
+        
+        print('Census: num_samples: {}'.format(self.contexts.shape[0]))
+
+    @property
+    def num_samples(self):
+        return self.contexts.shape[0]
+    
+    def reset_data(self, sim_id=0):
+        # Load meta-data to generate dataset
+        indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+
+        # Generate inds
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            ind = indices[:self.num_contexts]
+        else:
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            ind = indices[i[:self.num_contexts]]
+
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
+        else:
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]]
+
+
+        contexts = self.contexts[ind,:] 
+        mean_rewards = self.rewards[ind,:] 
+        test_contexts = self.contexts[test_ind,:]
+        mean_test_rewards = self.rewards[test_ind,:]
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
+        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        return dataset 
+    
 #==================================
 #==================================
 def sample_mushroom_data(file_name,
