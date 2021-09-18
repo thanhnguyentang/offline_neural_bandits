@@ -47,8 +47,10 @@ class MushroomData(object):
                 prob_poison_bad=0.5,
                 pi = 'eps-greedy', 
                 eps = 0.1, 
-                subset_r = 0.5
+                subset_r = 0.5, 
                 ): 
+
+        self.name = 'mushroom'
         filename = 'data/mushroom.data'
         self.num_contexts = num_contexts 
         self.num_test_contexts = num_test_contexts
@@ -138,6 +140,7 @@ class JesterData(object):
             eps = 0.1, 
             subset_r = 0.5
         ): 
+        self.name = 'jester'
         file_name = 'data/jester.npy'
         with open(file_name, 'rb') as f:
             self.dataset = np.load(f)
@@ -218,6 +221,7 @@ class StatlogData(object):
             remove_underrepresented=False, 
             shuffle_rows=False # @thanhnt: careful, setting it to True changes the order of rows each time the data is loaded.
         ):
+        self.name = 'statlog'
         file_name = 'data/shuttle.trn'
         with open(file_name, 'r') as f:
             dataset = np.loadtxt(f)
@@ -296,6 +300,7 @@ class CoverTypeData(object):
             remove_underrepresented=False, 
             shuffle_rows=False # @thanhnt: careful, setting it to True changes the order of rows each time the data is loaded.
         ):
+        self.name = 'covertype'
         file_name = 'data/covtype.data'
         with open(file_name, 'r') as f:
             df = pd.read_csv(f, header=0, na_values=['?']).dropna()
@@ -379,6 +384,7 @@ class StockData(object):
                 eps = 0.1, 
                 subset_r = 0.5
                 ): 
+        self.name = 'stock'
         filename = 'data/raw_stock_contexts'
         self.num_contexts = num_contexts 
         self.num_test_contexts = num_test_contexts
@@ -464,6 +470,7 @@ class AdultData(object):
             eps = 0.1, 
             subset_r = 0.5
             ): 
+        self.name = 'adult'
         self.num_contexts = num_contexts 
         self.num_test_contexts = num_test_contexts
         self.num_actions = num_actions 
@@ -541,6 +548,7 @@ class CensusData(object):
             eps = 0.1, 
             subset_r = 0.5
             ): 
+        self.name = 'census'
         self.num_contexts = num_contexts 
         self.num_test_contexts = num_test_contexts
         self.num_actions = num_actions 
