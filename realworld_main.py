@@ -198,7 +198,7 @@ def main(unused_argv):
     #==============================
     file_name = os.path.join(res_dir, algo_prefix) + '.npz' 
 
-    regrets, errs = realworld_contextual_bandit_runner(algos, dataset, data, FLAGS.num_sim, 
+    regrets, errs = realworld_contextual_bandit_runner(algos, data, FLAGS.num_sim, 
         FLAGS.update_freq, FLAGS.test_freq, FLAGS.verbose, FLAGS.debug, FLAGS.normalize, file_name)
 
     np.savez(file_name, regrets, errs)

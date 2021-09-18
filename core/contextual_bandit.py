@@ -195,7 +195,7 @@ def contextual_bandit_runner(algos, dataset, noise_std, num_sim, update_freq, te
 
     return np.array(regrets), np.array(errs) 
 
-def realworld_contextual_bandit_runner(algos, dataset, data, \
+def realworld_contextual_bandit_runner(algos, data, \
             num_sim, update_freq, test_freq, verbose, debug, normalize, save_path=None):
     """Run an offline contextual bandit problem on a set of algorithms in the same dataset. 
 
@@ -205,20 +205,13 @@ def realworld_contextual_bandit_runner(algos, dataset, data, \
     """
 
     # Create a bandit instance 
-    cmab = OfflineContextualBandit(data.noise_std, *dataset) 
-    mean_rewards = dataset[2]
     regrets = [] # (num_sim, num_algos, T) 
     errs = [] # (num_sim, num_algos, T) 
     for sim in range(num_sim):
         # Run the offline contextual bandit in an online manner 
         print('Simulation: {}/{}'.format(sim + 1, num_sim))
-        if data.name == 'mushroom':
-            cmab.set_rewards(data.reset_rewards()) # not independent noise data
-        else:
-            cmab.reset_rewards() # only for independent noise data 
-        # cmab.set_rewards(rewards)
+        cmab = RealworldOfflineContextualBandit(*data.reset_data(sim))
 
-        # cmab.set_rewards(data.reset_rewards())
         for algo in algos:
             algo.reset(sim * 1111)
 
@@ -396,6 +389,46 @@ class OfflineContextualBandit(object):
 
 
 
+class RealworldOfflineContextualBandit(object):
+    def __init__(self, contexts, actions, rewards, test_contexts, test_mean_rewards):
+        """
+        Args:
+            contexts: (None, context_dim) 
+            actions: (None,) 
+            mean_rewards: (None, num_actions) 
+            test_contexts: (None, context_dim)
+            test_mean_rewards: (None, num_actions)
+        """
+        self.contexts = contexts
+        self.actions = actions
+        self.rewards = rewards
+        self.test_contexts = test_contexts
+        self.test_mean_rewards = test_mean_rewards
+        self.order = range(self.num_contexts) 
+
+    def reset_order(self): 
+        self.order = np.random.permutation(self.num_contexts)
+
+    def get_data(self, number): 
+        ind = self.order[number]
+        a = self.actions[ind]
+        return self.contexts[ind:ind+1], self.actions[ind:ind+1], self.rewards[ind:ind+1, a:a+1] 
+
+    @property 
+    def num_contexts(self): 
+        return self.contexts.shape[0] 
+
+    @property 
+    def num_actions(self):
+        return self.test_mean_rewards.shape[1] 
+    
+    @property  
+    def context_dim(self):
+        return self.contexts.shape[1]
+
+    @property 
+    def num_test_contexts(self): 
+        return self.test_contexts.shape[0]
 
 
 

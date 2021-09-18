@@ -85,12 +85,12 @@ class MushroomData(object):
         test_indices = test_indices % self.num_samples
 
         if self.num_contexts > self.num_samples:
-            self.ind = indices[:self.num_contexts]
+            ind = indices[:self.num_contexts]
         else:
             # then select self.num_contexts first distinc elements of indices
             i = np.unique(indices,return_index=True)[1]
             i.sort()
-            self.ind = indices[i[:self.num_contexts]]
+            ind = indices[i[:self.num_contexts]]
 
         if self.num_test_contexts > self.num_samples:
             test_ind = test_indices[:self.num_test_contexts]
@@ -99,14 +99,14 @@ class MushroomData(object):
             i.sort()
             test_ind = test_indices[i[:self.num_test_contexts]]
 
-        contexts = self.df.iloc[self.ind, 2:].values 
+        contexts = self.df.iloc[ind, 2:].values 
         test_contexts = self.df.iloc[test_ind, 2:].values 
 
 
         # Compute mean rewards 
         no_eat_reward = self.r_noeat * np.ones((self.num_contexts, 1))
         mean_eat_poison_reward = self.r_eat_poison_bad * self.prob_poison_bad + self.r_eat_poison_good * (1 - self.prob_poison_bad)
-        mean_eat_reward = self.r_eat_safe * self.df.iloc[self.ind, 0] + np.multiply(mean_eat_poison_reward, self.df.iloc[self.ind, 1])
+        mean_eat_reward = self.r_eat_safe * self.df.iloc[ind, 0] + np.multiply(mean_eat_poison_reward, self.df.iloc[ind, 1])
         mean_eat_reward = mean_eat_reward.values.reshape((self.num_contexts, 1))
         mean_rewards = np.hstack((no_eat_reward, mean_eat_reward))
 
@@ -116,18 +116,20 @@ class MushroomData(object):
         mean_test_rewards = np.hstack((no_eat_reward, mean_eat_reward))
 
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
-        return dataset 
 
-    def reset_rewards(self): 
+
+        # create rewards
         no_eat_reward = self.r_noeat * np.ones((self.num_contexts, 1))
         random_poison = np.random.choice([self.r_eat_poison_bad, self.r_eat_poison_good],
                                 p=[self.prob_poison_bad, 1 - self.prob_poison_bad], size= self.num_contexts)
-        eat_reward = self.r_eat_safe * self.df.iloc[self.ind, 0]
-        eat_reward += np.multiply(random_poison, self.df.iloc[self.ind, 1])
+        eat_reward = self.r_eat_safe * self.df.iloc[ind, 0]
+        eat_reward += np.multiply(random_poison, self.df.iloc[ind, 1])
         eat_reward = eat_reward.values.reshape((self.num_contexts, 1))
+        rewards = np.hstack((no_eat_reward, eat_reward))
 
-        return np.hstack((no_eat_reward, eat_reward))
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
+        return dataset 
+
 
 class JesterData(object):
     def __init__(self,
@@ -175,12 +177,12 @@ class JesterData(object):
         test_indices = test_indices % self.num_samples
 
         if self.num_contexts > self.num_samples:
-            self.ind = indices[:self.num_contexts]
+            ind = indices[:self.num_contexts]
         else:
             # then select self.num_contexts first distinc elements of indices
             i = np.unique(indices,return_index=True)[1]
             i.sort()
-            self.ind = indices[i[:self.num_contexts]]
+            ind = indices[i[:self.num_contexts]]
 
         if self.num_test_contexts > self.num_samples:
             test_ind = test_indices[:self.num_test_contexts]
@@ -189,19 +191,19 @@ class JesterData(object):
             i.sort()
             test_ind = test_indices[i[:self.num_test_contexts]]
 
-        contexts = self.dataset[self.ind, :self.context_dim]
-        mean_rewards = self.dataset[self.ind, self.context_dim:] 
+        contexts = self.dataset[ind, :self.context_dim]
+        mean_rewards = self.dataset[ind, self.context_dim:] 
 
         test_contexts = self.dataset[test_ind, :self.context_dim]
         mean_test_rewards = self.dataset[test_ind, self.context_dim:] 
 
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+
+        #create rewards
+        rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 
-    def reset_rewards(self): 
-        mean_rewards = self.dataset[self.ind, self.context_dim:]
-        return mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
 
 class StatlogData(object):
     def __init__(self,
@@ -258,12 +260,12 @@ class StatlogData(object):
         test_indices = test_indices % self.num_samples
 
         if self.num_contexts > self.num_samples:
-            self.ind = indices[:self.num_contexts]
+            ind = indices[:self.num_contexts]
         else:
             # then select self.num_contexts first distinc elements of indices
             i = np.unique(indices,return_index=True)[1]
             i.sort()
-            self.ind = indices[i[:self.num_contexts]]
+            ind = indices[i[:self.num_contexts]]
 
         if self.num_test_contexts > self.num_samples:
             test_ind = test_indices[:self.num_test_contexts]
@@ -276,7 +278,9 @@ class StatlogData(object):
         test_contexts, mean_test_rewards = self.contexts[test_ind,:], self.mean_rewards[test_ind,:]
 
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        #create rewards
+        rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 
 class CoverTypeData(object): 
@@ -335,12 +339,12 @@ class CoverTypeData(object):
         test_indices = test_indices % self.num_samples
 
         if self.num_contexts > self.num_samples:
-            self.ind = indices[:self.num_contexts]
+            ind = indices[:self.num_contexts]
         else:
             # then select self.num_contexts first distinc elements of indices
             i = np.unique(indices,return_index=True)[1]
             i.sort()
-            self.ind = indices[i[:self.num_contexts]]
+            ind = indices[i[:self.num_contexts]]
 
         if self.num_test_contexts > self.num_samples:
             test_ind = test_indices[:self.num_test_contexts]
@@ -350,12 +354,14 @@ class CoverTypeData(object):
             test_ind = test_indices[i[:self.num_test_contexts]]
 
 
-        contexts = self.contexts[self.ind,:] 
-        mean_rewards = self.rewards[self.ind,:] 
+        contexts = self.contexts[ind,:] 
+        mean_rewards = self.rewards[ind,:] 
         test_contexts = self.contexts[test_ind,:]
         mean_test_rewards = self.rewards[test_ind,:]
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        #create rewards
+        rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 
     @property 
@@ -408,12 +414,12 @@ class StockData(object):
         test_indices = test_indices % self.num_samples
 
         if self.num_contexts > self.num_samples:
-            self.ind = indices[:self.num_contexts]
+            ind = indices[:self.num_contexts]
         else:
             # then select self.num_contexts first distinc elements of indices
             i = np.unique(indices,return_index=True)[1]
             i.sort()
-            self.ind = indices[i[:self.num_contexts]]
+            ind = indices[i[:self.num_contexts]]
         
         if self.num_test_contexts > self.num_samples:
             test_ind = test_indices[:self.num_test_contexts]
@@ -422,26 +428,17 @@ class StockData(object):
             i.sort()
             test_ind = test_indices[i[:self.num_test_contexts]]
 
-        contexts = self.contexts[self.ind,:] 
+        contexts = self.contexts[ind,:] 
         test_contexts = self.contexts[test_ind,:]
         # Compute rewards
         mean_rewards = np.dot(contexts, self.betas) # (num_contexts, num_actions)
         mean_test_rewards = np.dot(test_contexts, self.betas) # (num_contexts, num_actions)
 
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        #create rewards
+        rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
-
-
-    def reset_rewards(self):
-        contexts = self.contexts[self.ind]
-
-        # Compute rewards
-        mean_rewards = np.dot(contexts, self.betas) # (num_contexts, num_actions)
-        noise = np.random.normal(scale=self.noise_std, size=mean_rewards.shape)
-        rewards = mean_rewards + noise
-    
-        return rewards
 
 
 class AdultData(object):
@@ -518,7 +515,9 @@ class AdultData(object):
         test_contexts = self.contexts[test_ind,:]
         mean_test_rewards = self.rewards[test_ind,:]
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        #create rewards
+        rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 
 
@@ -597,7 +596,9 @@ class CensusData(object):
         test_contexts = self.contexts[test_ind,:]
         mean_test_rewards = self.rewards[test_ind,:]
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+        #create rewards
+        rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
     
 
