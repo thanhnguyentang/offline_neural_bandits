@@ -6,13 +6,12 @@ import jax.numpy as jnp
 from easydict import EasyDict as edict
 import os 
 
-from core.contextual_bandit import realworld_contextual_bandit_runner
+from core.contextual_bandit import contextual_bandit_runner
 from algorithms.neural_offline_bandit import ExactNeuraLCBV2, NeuralGreedyV2, ApproxNeuraLCBV2
 from algorithms.lin_lcb import LinLCB 
 from algorithms.kern_lcb import KernLCB 
 from algorithms.uniform_sampling import UniformSampling
 from algorithms.neural_lin_lcb import ExactNeuralLinLCBV2, ExactNeuralLinGreedyV2, ApproxNeuralLinLCBV2, ApproxNeuralLinGreedyV2
-from data.synthetic_data import sample_quadratic_data, sample_quadratic2_data, sample_cosine_data, sample_latent_manifold_data
 from data.uci_data import *
 
 from absl import flags, app
@@ -181,24 +180,13 @@ def main(unused_argv):
             hparams.beta, lin_hparams.rbf_sigma, lin_hparams.max_num_sample
         )
 
-    # if FLAGS.algo_group == 'tune-approx-neural': # for tuning NeuraLCB
-    #     algos = [
-    #             UniformSampling(lin_hparams),
-    #             ApproxNeuraLCBV2(hparams, update_freq = FLAGS.update_freq)
-    #         ]
 
-    #     algo_prefix = 'tune-approx-neural_epochs={}_m={}_layern={}_buffer={}_bs={}_lr={}_beta={}_lambda={}_lambda0={}'.format(
-    #         hparams.num_steps, min(hparams.layer_sizes), hparams.layer_n, hparams.buffer_s, hparams.batch_size, hparams.lr, \
-    #         hparams.beta, hparams.lambd, hparams.lambd0
-    #     )
-
- 
     #==============================
     # Runner 
     #==============================
     file_name = os.path.join(res_dir, algo_prefix) + '.npz' 
 
-    regrets, errs = realworld_contextual_bandit_runner(algos, data, FLAGS.num_sim, 
+    regrets, errs = contextual_bandit_runner(algos, data, FLAGS.num_sim, 
         FLAGS.update_freq, FLAGS.test_freq, FLAGS.verbose, FLAGS.debug, FLAGS.normalize, file_name)
 
     np.savez(file_name, regrets, errs)

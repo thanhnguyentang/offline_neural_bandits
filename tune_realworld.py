@@ -11,7 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--task', type=str, default='run_exps', choices=['run_exps','collect_results'])
 parser.add_argument('--data_types', nargs='+', type=str, default=['mushroom'])
 parser.add_argument('--algo_groups', nargs='+', type=str, default=['approx-neural'])
-parser.add_argument('--num_sim', type=int, default=3)
+parser.add_argument('--num_sim', type=int, default=5)
 parser.add_argument('--models_per_gpu', type=int, default=6)
 parser.add_argument('--gpus', nargs='+', type=int, default=[0], help='gpus indices used for multi_gpu')
 

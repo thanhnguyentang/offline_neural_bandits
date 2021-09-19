@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from easydict import EasyDict as edict
 import os 
 
-from core.contextual_bandit import realworld_contextual_bandit_runner
+from core.contextual_bandit import contextual_bandit_runner
 from algorithms.neural_offline_bandit import ExactNeuraLCBV2, NeuralGreedyV2, ApproxNeuraLCBV2
 from algorithms.lin_lcb import LinLCB 
 from algorithms.kern_lcb import KernLCB 
@@ -73,9 +73,7 @@ def main(unused_argv):
     )
     
 
-
-    dataset = data.reset_data()
-    context_dim = dataset[0].shape[1] 
+    context_dim = data.context_dim 
     num_actions = data.num_actions 
     
     hparams = edict({
@@ -119,8 +117,6 @@ def main(unused_argv):
     if not os.path.exists(res_dir):
         os.makedirs(res_dir)
 
-       
-
     #================================================================
     # Algorithms 
     #================================================================
@@ -148,7 +144,6 @@ def main(unused_argv):
             hparams.num_steps, min(hparams.layer_sizes), hparams.layer_n, hparams.buffer_s, hparams.batch_size, hparams.lr, \
            hparams.lambd
         ) 
-
 
 
     if FLAGS.algo_group == 'baseline':
@@ -182,7 +177,7 @@ def main(unused_argv):
     #==============================
     file_name = os.path.join(res_dir, algo_prefix) + '.npz' 
 
-    regrets, errs = realworld_contextual_bandit_runner(algos, dataset, data, FLAGS.num_sim, 
+    regrets, errs = contextual_bandit_runner(algos, data, FLAGS.num_sim, 
         FLAGS.update_freq, FLAGS.test_freq, FLAGS.verbose, FLAGS.debug, FLAGS.normalize, file_name)
 
     np.savez(file_name, regrets, errs)

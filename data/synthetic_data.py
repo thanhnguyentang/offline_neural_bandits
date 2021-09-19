@@ -118,77 +118,12 @@ class SyntheticData(object):
         mean_test_rewards = h(test_contexts)
 
         actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-        dataset = (contexts, actions, mean_rewards, test_contexts, mean_test_rewards) 
+
+        rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 
 ###======================
-
-def sample_quadratic_data(num_contexts, num_test_contexts, \
-        num_actions, context_dim, pi, eps, subset_r):
-    thetas = np.random.randn(context_dim, num_actions) # can try uniform dist if have time
-    thetas /= np.linalg.norm(thetas, axis=0)[None,:]
-
-    h = lambda x: 10 * np.square(x @ thetas) # x: (None, context_dim), h: (None, num_actions) 
-
-    contexts = np.random.randn(num_contexts, context_dim) 
-    contexts /= np.linalg.norm(contexts, axis=1)[:,None]
-    mean_rewards = h(contexts) 
-
-    test_contexts = np.random.randn(num_test_contexts, context_dim) 
-    test_contexts /= np.linalg.norm(test_contexts, axis=1)[:,None]
-    test_mean_rewards = h(test_contexts) 
-
-    # Select good actions in the subset only and ignore the rest
-
-    actions = sample_offline_policy(mean_rewards, num_contexts, num_actions, pi, eps, subset_r)
-   
-    dataset = (contexts, actions, mean_rewards, test_contexts, test_mean_rewards) 
-    return dataset 
-
-def sample_quadratic2_data(num_contexts, num_test_contexts, \
-        num_actions, context_dim, pi, eps, subset_r):
-
-    A = np.random.randn(context_dim, context_dim, num_actions) 
-    h = lambda x: np.sum(np.square(x @ A), axis=0) # x: (None, context_dim), h: (None, num_actions) 
-
-    contexts = np.random.uniform(-1,1, size=(num_contexts, context_dim))
-    contexts /= np.linalg.norm(contexts, axis=1)[:,None]
-    mean_rewards = h(contexts) 
-
-    test_contexts = np.random.uniform(-1,1, size=(num_test_contexts, context_dim))
-    test_contexts /= np.linalg.norm(test_contexts, axis=1)[:,None]
-    test_mean_rewards = h(test_contexts) 
-
-    # Select good actions in the subset only and ignore the rest
-
-    actions = sample_offline_policy(mean_rewards, num_contexts, num_actions, pi, eps, subset_r)
-   
-    dataset = (contexts, actions, mean_rewards, test_contexts, test_mean_rewards) 
-    return dataset 
-
-def sample_cosine_data(num_contexts, num_test_contexts, \
-        num_actions, context_dim, pi, eps, subset_r):
-
-    thetas = np.random.randn(context_dim, num_actions) # can try uniform dist if have time
-    thetas /= np.linalg.norm(thetas, axis=0)[None,:]
-
-    h = lambda x: 10 * np.square(x @ thetas) # x: (None, context_dim), h: (None, num_actions) 
-
-    contexts = np.random.randn(num_contexts, context_dim) 
-    contexts /= np.linalg.norm(contexts, axis=1)[:,None]
-    mean_rewards = h(contexts) 
-
-    test_contexts = np.random.randn(num_test_contexts, context_dim) 
-    test_contexts /= np.linalg.norm(test_contexts, axis=1)[:,None]
-    test_mean_rewards = h(test_contexts) 
-
-    # Select good actions in the subset only and ignore the rest
-
-    actions = sample_offline_policy(mean_rewards, num_contexts, num_actions, pi, eps, subset_r)
-   
-    dataset = (contexts, actions, mean_rewards, test_contexts, test_mean_rewards) 
-    return dataset 
-
 def sample_latent_manifold_data(num_contexts, num_test_contexts, \
         num_actions, context_dim, latent_dim, radius, pi, eps, subset_r):
 
@@ -256,50 +191,6 @@ def sample_latent_manifold_data(num_contexts, num_test_contexts, \
     return dataset
 
 #=========================================#
-
-def sample_quadratic_data_old(num_contexts, num_test_contexts, context_dim, num_actions, sigma=0.0, p_opt=0.1, p_uni=0.1, verbose=True):
-    """Samples data from linearly parameterized arms.
-    The reward for context X and arm j is given by X^T beta_j, for some latent
-    set of parameters {beta_j : j = 1, ..., k}. The beta's are sampled uniformly
-    at random, the contexts are Gaussian, and sigma-noise is added to the rewards.
-    Args:
-        num_contexts: Number of contexts to sample.
-        dim_context: Dimension of the contexts.
-        num_actions: Number of arms for the multi-armed bandit.
-        sigma: Standard deviation of the additive noise. Set to zero for no noise.
-    Returns:
-        dataset: 
-        test_dataset: 
-    """
-    ## Meta-info 
-    name = 'quadratic'
-    reward_type = 'deterministic' if sigma == 0 else 'stochastic'
-    if verbose: 
-        print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
-            name, num_actions, num_contexts, context_dim, reward_type
-        ))
-
-    betas = np.random.uniform(-1, 1, (context_dim, num_actions))
-    betas /= np.linalg.norm(betas, axis=0)
-
-    # Generate train data 
-    contexts = np.random.normal(size=[num_contexts, context_dim])
-    contexts /= np.linalg.norm(contexts, axis=1)[:,None]
-    mean_rewards = np.square(np.dot(contexts, betas)) # (num_contexts, num_actions)
-    rewards = mean_rewards + np.random.normal(scale=sigma, size=mean_rewards.shape)
-
-    off_action = mixed_policy(num_actions, mean_rewards, p_opt, p_uni)
-    rewards = rewards[np.arange(num_contexts), off_action.ravel()].reshape(-1,1)
-    dataset = (contexts, off_action, rewards) 
-
-    # Generate test data 
-    test_contexts = np.random.normal(size=[num_test_contexts, context_dim])
-    test_mean_rewards = np.square(np.dot(test_contexts, betas)) # (num_contexts, num_actions)
-    test_dataset = (test_contexts, test_mean_rewards) 
-
-    return dataset, test_dataset
-
-
 def sample_linear_data(num_contexts, num_test_contexts, context_dim, num_actions, sigma=0.0, p_opt=0.1, p_uni=0.1, verbose=True):
     """Samples data from linearly parameterized arms.
     The reward for context X and arm j is given by X^T beta_j, for some latent
@@ -438,39 +329,3 @@ def unif_sphere(n,d,r):
     """
     X = np.random.uniform(-1, 1 + 1e-6, (n,d)) 
     return r * X / np.sqrt(np.sum(np.square(X), axis=1))[:,None]
-
-
-# dataset, test_dataset = sample_quadratic_data(num_contexts=2, num_test_contexts=2, context_dim=4, num_actions=3, sigma=0.1)
-
-# print(dataset)
-# print(test_dataset)
-## Wheel bandit 
-# num_contexts = 1000
-# mean_v = np.array([1,1,1,1,1.2])
-# std_v = np.ones(5) * 0.01
-# delta = 0.1 
-# mu_large = 50
-# std_large = 0.01
-# contexts, rewards, off_action, exp_rewards = sample_wheel_bandit_data(num_contexts, delta, mean_v, std_v,
-#                              mu_large, std_large)
-
-# print(contexts.shape) 
-# print(rewards.shape)
-# print(exp_rewards.shape)
-# print(off_action.shape)
-# print(rewards)
-
-
-## Latent Manifold 
-# num_contexts = 1000 
-# num_test_contexts = 1000
-# num_actions = 4 
-# context_dim = 512 
-# latent_dim = 32 
-# radius = 1 
-# poly = 4
-# std = 1 
-# dataset, test_dataset = sample_latent_manifold_data(num_contexts, num_test_contexts, \
-#     num_actions, context_dim, latent_dim, radius, poly, std)
-
-# print(dataset[-1]) 
