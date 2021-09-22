@@ -11,7 +11,8 @@ from algorithms.neural_offline_bandit import ExactNeuraLCBV2, NeuralGreedyV2, Ap
 from algorithms.lin_lcb import LinLCB 
 from algorithms.kern_lcb import KernLCB 
 from algorithms.uniform_sampling import UniformSampling
-from algorithms.neural_lin_lcb import ExactNeuralLinLCBV2, ExactNeuralLinGreedyV2, ApproxNeuralLinLCBV2, ApproxNeuralLinGreedyV2
+from algorithms.neural_lin_lcb import ExactNeuralLinLCBV2, ExactNeuralLinGreedyV2, ApproxNeuralLinLCBV2, ApproxNeuralLinGreedyV2, \
+    ApproxNeuralLinLCBJointModel, NeuralLinGreedyJointModel
 from data.synthetic_data import SyntheticData
 
 from absl import flags, app
@@ -152,8 +153,10 @@ def main(unused_argv):
             LinLCB(lin_hparams),
             ## KernLCB(lin_hparams), 
             # NeuralGreedyV2(hparams, update_freq = FLAGS.update_freq),
-            ApproxNeuralLinLCBV2(hparams), 
-            ApproxNeuralLinGreedyV2(hparams),
+            # ApproxNeuralLinLCBV2(hparams), 
+            # ApproxNeuralLinGreedyV2(hparams),
+            NeuralLinGreedyJointModel(hparams), 
+            ApproxNeuralLinLCBJointModel(hparams)
         ]
 
         algo_prefix = 'baseline_epochs={}_m={}_layern={}_beta={}_lambda0={}_rbf-sigma={}_maxnum={}'.format(

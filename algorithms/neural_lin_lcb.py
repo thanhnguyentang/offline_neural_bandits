@@ -127,6 +127,35 @@ class ApproxNeuralLinLCBV2(BanditAlgorithm):
             self.y_hat[actions[i]] = self.y_hat[actions[i]] +  rewards[i] * u[i,:] 
             # jax.ops.index_add(self.y_hat, actions[i], rewards[i] * u[i,:])
 
+    def monitor(self, contexts=None, actions=None, rewards=None):
+        norm = jnp.hstack(( jnp.ravel(param) for param in jax.tree_leaves(self.nn.params)))
+
+        preds = []
+        cnfs = []
+        for a in range(self.hparams.num_actions):
+            actions_tmp = jnp.ones(shape=(contexts.shape[0],)) * a 
+
+            g = self.nn.grad_out(self.nn.params, contexts, actions_tmp) / jnp.sqrt(self.nn.m) # (num_samples, p)
+            gAg = jnp.sum(jnp.square(g) / self.diag_Lambda[a][:], axis=-1)                
+            cnf = jnp.sqrt(gAg) # (num_samples,)
+
+            f = jnp.sum(jnp.multiply(g, self.y_hat[a][:]) / self.diag_Lambda[a][:], axis=-1)
+
+            cnfs.append(cnf) 
+            preds.append(f)
+        cnf = jnp.hstack(cnfs) 
+        preds = jnp.hstack(preds)
+
+        cost = self.nn.loss(self.nn.params, contexts, actions, rewards)
+        a = int(actions.ravel()[0])
+        if self.hparams.debug_mode == 'simple':
+            print('     r: {} | a: {} | f: {} | cnf: {} | loss: {} | param_mean: {}'.format(rewards.ravel()[0], a, \
+                preds.ravel()[0], \
+                cnf.ravel()[a], cost, jnp.mean(jnp.square(norm))))
+        else:
+            print('     r: {} | a: {} | f: {} | cnf: {} | loss: {} | param_mean: {}'.format(rewards.ravel()[0], \
+                a, preds.ravel(), \
+                cnf.ravel(), cost, jnp.mean(jnp.square(norm))))
 
 class ApproxNeuralLinGreedyV2(ApproxNeuralLinLCBV2):
     def __init__(self, hparams, update_freq=1,name='ApproxNeuralLinGreedyV2'):
@@ -153,7 +182,85 @@ class ApproxNeuralLinGreedyV2(ApproxNeuralLinLCBV2):
             # print(lcb)
             acts.append( jnp.argmax(lcb, axis=1)) 
         return jnp.hstack(acts)
+
+
+class ApproxNeuralLinLCBJointModel(BanditAlgorithm):
+    """Use joint model as LinLCB. 
+    
+    Sigma_t = lambda I + \sum_{i=1}^t phi(x_i,a_i) ph(x_i,a_i)^T  
+    theta_t = Sigma_t^{-1} \sum_{i=1}^t phi(x_i,a_i) y_i ""
+    """
+    def __init__(self, hparams, update_freq=1, name='ApproxNeuralLinLCBJointModel'):
+        self.name = name 
+        self.hparams = hparams 
+        self.update_freq = update_freq 
+        opt = optax.adam(0.0001) # dummy
+        self.nn = NeuralBanditModelV2(opt, hparams, '{}-net'.format(name))
         
+        self.reset(self.hparams.seed)
+
+    def reset(self, seed): 
+        # self.y_hat = jnp.zeros(shape=(self.hparams.num_actions, self.nn.num_params))
+        self.y_hat = jnp.zeros(shape=(self.nn.num_params,)) 
+        self.diag_Lambda = jnp.ones(self.nn.num_params) * self.hparams.lambd0  
+        self.nn.reset(seed) 
+
+    def sample_action(self, contexts):
+        cs = self.hparams.chunk_size
+        num_chunks = math.ceil(contexts.shape[0] / cs)
+        acts = []
+        for i in range(num_chunks):
+            ctxs = contexts[i * cs: (i+1) * cs,:] 
+            lcb = []
+            for a in range(self.hparams.num_actions):
+                actions = jnp.ones(shape=(ctxs.shape[0],)) * a 
+
+                g = self.nn.grad_out(self.nn.params, ctxs, actions) / jnp.sqrt(self.nn.m) # (None, p)
+
+                gAg = jnp.sum(jnp.square(g) / self.diag_Lambda, axis=-1)                
+                cnf = jnp.sqrt(gAg) # (num_samples,)
+
+                f = jnp.sum(jnp.multiply(g, self.y_hat) / self.diag_Lambda, axis=-1)
+
+                lcb_a = f.ravel() - self.hparams.beta * cnf.ravel()  # (num_samples,)
+                lcb.append(lcb_a.reshape(-1,1)) 
+            lcb = jnp.hstack(lcb) 
+            acts.append( jnp.argmax(lcb, axis=1)) 
+        return jnp.hstack(acts)
+
+    # def update_buffer(self, contexts, actions, rewards): 
+    #     self.data.add(contexts, actions, rewards)
+
+    def update(self, contexts, actions, rewards): 
+        # print(rewards)
+        u = self.nn.grad_out(self.nn.params, contexts, actions) / jnp.sqrt(self.nn.m)
+        for i in range(contexts.shape[0]):
+            # jax.ops.index_update(self.diag_Lambda, actions[i], \
+            #     jnp.square(u[i,:]) + self.diag_Lambda[actions[i],:])  
+            self.diag_Lambda = jnp.square(u[i,:]) + self.diag_Lambda
+            self.y_hat = self.y_hat +  rewards[i] * u[i,:] 
+        
+
+class NeuralLinGreedyJointModel(ApproxNeuralLinLCBJointModel):
+    def __init__(self, hparams, update_freq=1, name='NeuralLinGreedyJointModel'):
+        super().__init__(hparams, update_freq, name)
+    def sample_action(self, contexts):
+        cs = self.hparams.chunk_size
+        num_chunks = math.ceil(contexts.shape[0] / cs)
+        acts = []
+        for i in range(num_chunks):
+            ctxs = contexts[i * cs: (i+1) * cs,:] 
+            lcb = []
+            for a in range(self.hparams.num_actions):
+                actions = jnp.ones(shape=(ctxs.shape[0],)) * a 
+                g = self.nn.grad_out(self.nn.params, ctxs, actions) / jnp.sqrt(self.nn.m) # (None, p)
+                f = jnp.sum(jnp.multiply(g, self.y_hat) / self.diag_Lambda, axis=-1)
+                lcb_a = f.ravel()  # (num_samples,)
+                lcb.append(lcb_a.reshape(-1,1)) 
+            lcb = jnp.hstack(lcb) 
+            acts.append( jnp.argmax(lcb, axis=1)) 
+        return jnp.hstack(acts)
+
 #=======================        
 class ExactNeuralLinGreedyV2(ExactNeuralLinLCBV2):
     def __init__(self, hparams, update_freq=1, name='ExactNeuralLinGreedyV2'):

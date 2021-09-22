@@ -11,7 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--task', type=str, default='run_exps', choices=['run_exps','collect_results'])
 parser.add_argument('--data_types', nargs='+', type=str, default=['mushroom'])
 parser.add_argument('--algo_groups', nargs='+', type=str, default=['approx-neural'])
-parser.add_argument('--num_sim', type=int, default=5)
+parser.add_argument('--num_sim', type=int, default=10)
 parser.add_argument('--models_per_gpu', type=int, default=6)
 parser.add_argument('--gpus', nargs='+', type=int, default=[0], help='gpus indices used for multi_gpu')
 
@@ -45,13 +45,18 @@ def multi_gpu_launcher(commands,gpus,models_per_gpu):
 def create_commands(data_type='mushroom', algo_group='approx-neural', num_sim=3):
     commands = []
     if algo_group == 'approx-neural':
-        for batch_size,num_steps,buffer_s in [(1,1,1),(50,100,-1)]:
-            for beta in [0.01, 0.05, 0.1, 0.5, 1, 5]:
-                commands.append('python realworld_main.py --data_type {} --algo_group {} --num_sim {} --batch_size {} --num_steps {} --buffer_s {} --beta {}'.format(data_type,algo_group,num_sim,batch_size,num_steps,buffer_s,beta))
+        # for batch_size,num_steps,buffer_s in [(1,1,1),(50,100,-1)]:
+        for lr in [1e-4,1e-3]:
+            for batch_size,num_steps,buffer_s in [(1,1,1),(50,100,-1)]:
+                # for beta in [0.01, 0.05, 0.1, 0.5, 1, 5]:
+                for beta in [0.01, 0.05, 1,5,10]:
+                    commands.append('python realworld_main.py --data_type {} --algo_group {} --num_sim {} --batch_size {} --num_steps {} --buffer_s {} --beta {} --lr {}'.format(data_type,algo_group,num_sim,batch_size,num_steps,buffer_s,beta,lr))
 
     elif algo_group == 'neural-greedy':
-        for batch_size,num_steps,buffer_s in [(1,1,1),(50,100,-1)]:
-            commands.append('python realworld_main.py --data_type {} --algo_group {} --num_sim {} --batch_size {} --num_steps {} --buffer_s {} '.format(data_type,algo_group,num_sim,batch_size,num_steps,buffer_s))
+        for lr in [1e-4, 1e-3]:
+            # for batch_size,num_steps,buffer_s in [(1,1,1),(50,100,-1)]:
+            for batch_size,num_steps,buffer_s in [(1,1,1),(50,100,-1)]:
+                commands.append('python realworld_main.py --data_type {} --algo_group {} --num_sim {} --batch_size {} --num_steps {} --buffer_s {} --lr {}'.format(data_type,algo_group,num_sim,batch_size,num_steps,buffer_s,lr))
 
     elif algo_group == 'kern':
         for rbf_sigma in [0.1, 1,10]:
