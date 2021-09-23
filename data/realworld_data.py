@@ -35,6 +35,85 @@ def one_hot(df, cols):
         df = df.drop(col, axis=1)
     return df
 
+class MnistData(object):
+    def __init__(self,
+            num_contexts, 
+            num_test_contexts, 
+            context_dim = 784, 
+            num_actions = 10, 
+            noise_std = 0, 
+            pi = 'eps-greedy', 
+            eps = 0.1, 
+            subset_r = 0.5,
+            remove_underrepresented=False, 
+        ):
+        from torchvision.datasets import MNIST
+        from torchvision import transforms
+        self.name = 'mnist'
+
+        dataset = MNIST('data/',train=True,transform=transforms.ToTensor(),download=True)
+        test_dataset = MNIST('data/',train=False,transform=transforms.ToTensor(),download=True)
+
+        ## Meta-info 
+        self.num_contexts = num_contexts 
+        self.num_test_contexts = num_test_contexts
+        self.context_dim = context_dim
+        self.num_actions = num_actions
+        self.pi = pi 
+        self.eps = eps 
+        self.subset_r = subset_r
+        self.noise_std = noise_std
+
+
+        contexts = dataset.data.view([-1,context_dim]).numpy()
+        labels = dataset.targets.numpy()
+        if remove_underrepresented:
+            contexts, labels = remove_underrepresented_classes(contexts, labels)
+        self.contexts, self.mean_rewards = classification_to_bandit_problem(contexts, labels, num_actions)
+
+        reward_type = 'deterministic'
+        print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
+            self.name, num_actions, self.num_samples, context_dim, reward_type
+        ))
+
+    
+    @property
+    def num_samples(self):
+        return self.contexts.shape[0]
+
+    def reset_data(self, sim_id=0):
+        # Load meta-data to generate dataset
+        indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+        test_indices = np.load('data/meta/test_indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
+
+        # Generate inds
+        indices = indices % self.num_samples
+        test_indices = test_indices % self.num_samples
+
+        if self.num_contexts > self.num_samples:
+            ind = indices[:self.num_contexts]
+        else:
+            # then select self.num_contexts first distinc elements of indices
+            i = np.unique(indices,return_index=True)[1]
+            i.sort()
+            ind = indices[i[:self.num_contexts]]
+
+        if self.num_test_contexts > self.num_samples:
+            test_ind = test_indices[:self.num_test_contexts]
+        else:
+            i = np.unique(test_indices,return_index=True)[1]
+            i.sort()
+            test_ind = test_indices[i[:self.num_test_contexts]]
+
+        contexts, mean_rewards = self.contexts[ind,:], self.mean_rewards[ind,:] 
+        test_contexts, mean_test_rewards = self.contexts[test_ind,:], self.mean_rewards[test_ind,:]
+
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
+        #create rewards
+        rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
+        return dataset 
+
 class MushroomData(object):
     def __init__(self, 
                 num_contexts, 

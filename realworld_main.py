@@ -13,7 +13,7 @@ from algorithms.kern_lcb import KernLCB
 from algorithms.uniform_sampling import UniformSampling
 from algorithms.neural_lin_lcb import ExactNeuralLinLCBV2, ExactNeuralLinGreedyV2, ApproxNeuralLinLCBV2, ApproxNeuralLinGreedyV2, \
     ApproxNeuralLinLCBJointModel, NeuralLinGreedyJointModel
-from data.uci_data import *
+from data.realworld_data import *
 
 from absl import flags, app
 
@@ -65,7 +65,7 @@ def main(unused_argv):
         policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.subset_ratio)
 
     dataclasses = {'mushroom':MushroomData, 'jester':JesterData, 'statlog':StatlogData, 'covertype':CoverTypeData, 'stock': StockData,
-        'adult': AdultData, 'census': CensusData
+            'adult': AdultData, 'census': CensusData, 'mnist': MnistData
     }
     
     if FLAGS.data_type in dataclasses:
