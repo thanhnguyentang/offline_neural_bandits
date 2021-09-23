@@ -16,7 +16,7 @@ from algorithms.neural_lin_lcb import ExactNeuralLinLCBV2, ExactNeuralLinGreedyV
 from data.uci_data import *
 
 from absl import flags, app
-import os 
+
 
 FLAGS = flags.FLAGS 
 
