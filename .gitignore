@@ -20,6 +20,8 @@ mini_main.py
 main_old.py
 main.py
 *.ipynb
+!plot_synthetic.ipynb 
+!plot_realworld.ipynb
 dev_main.py
 !/data/meta/
 !/data/syn_meta/
