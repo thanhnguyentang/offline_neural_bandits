@@ -1,6 +1,6 @@
 # NeuraLCB 
 
-This is the official JAX-based code for our `NeuraLCB` paper, ["Offline Neural Contextual Bandits: Pessimism, Optimization and Generalization"](https://arxiv.org/abs/2111.13807), 
+This is the official JAX-based code for our `NeuraLCB` paper, ["Offline Neural Contextual Bandits: Pessimism, Optimization and Generalization"](https://openreview.net/pdf?id=sPIFuucA3F), 
 ICLR 2022. `NeuraLCB` is a provably and computationally efficient offline policy learning (OPL) algorithm with deep neural networks: 
 * Use a neural network to learn the reward
 * Use neural network’s gradients for pessimistic exploitation
