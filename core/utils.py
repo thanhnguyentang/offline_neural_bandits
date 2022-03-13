@@ -3,6 +3,9 @@
 import jax 
 import jax.numpy as jnp 
 import numpy as np 
+from tqdm import tqdm
+from easydict import EasyDict as edict
+from algorithms.lin_ucb import LinUCB # for online data collection
 
 @jax.jit 
 def inv_sherman_morrison(u, A_inv):
@@ -64,7 +67,16 @@ def action_convolution(contexts, actions, num_actions):
 # action_convolution =  jax.jit(action_convolution_impure_fn, static_argnums=(2,))
 
 
-def sample_offline_policy(mean_rewards, num_contexts, num_actions, pi='eps-greedy', eps=0.1, subset_r = 0.5): 
+def sample_offline_policy(mean_rewards, num_contexts, num_actions, pi='eps-greedy', eps=0.1, subset_r = 0.5, 
+                contexts=None, rewards=None): 
+    """Sample offline actions 
+
+    Args:
+        mean_rewards: (num_contexts, num_actions)
+        num_contexts: int 
+        num_actions: int
+        pi: ['eps-greedy', 'subset', 'online']
+    """
     if pi == 'subset':
         subset_s = int(num_actions * subset_r)
         subset_mean_rewards = mean_rewards[np.arange(num_contexts), :subset_s]
@@ -78,6 +90,37 @@ def sample_offline_policy(mean_rewards, num_contexts, num_actions, pi='eps-greed
         actions = selector.ravel() * uniform_actions + (1 - selector.ravel()) * opt_actions 
         actions = actions.astype('int')
         return actions
+    elif pi == 'online':
+        # Create offline data that is dependent on the past data
+        assert contexts is not None 
+        assert rewards is not None
+        hparams = edict({
+            'context_dim': contexts.shape[1], 
+            'num_actions': num_actions, 
+            'beta': 0.1, 
+            'lambd0': 0.1, 
+        })
+
+        opt_actions = np.argmax(mean_rewards, axis=1)
+        delta = np.random.uniform(size=(num_contexts,))
+        selector = np.array(delta <= eps).astype('float32') 
+
+        algo = LinUCB(hparams) 
+
+        algo.reset(1111)
+        actions = []
+        for i in tqdm(range(num_contexts),ncols=75):
+            c = contexts[i:i+1,:]
+            a_onl = algo.sample_action(c)
+            # Combine a_onl and a_opt to make sure the offline data has a good coverage of the optimal policy
+            a = selector[i] * a_onl + (1-selector[i]) * opt_actions[i:i+1]
+            a = a.astype('int')
+            r = rewards[i:i+1,a[0]:a[0]+1]  
+            algo.update(c,a,r)
+            actions.append(a[0])
+        return np.array(actions).astype('int')
+    else:
+        raise NotImplementedError('{} is not implemented'.format(pi))
 
 def mixed_policy(num_actions, exp_reward, p_opt, p_uni):
     num_contexts = exp_reward.shape[0]

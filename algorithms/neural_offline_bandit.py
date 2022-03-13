@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import optax
 import numpy as np 
+from joblib import Parallel, delayed
 from core.bandit_algorithm import BanditAlgorithm 
 from core.bandit_dataset import BanditDataset
 from core.utils import inv_sherman_morrison, inv_sherman_morrison_single_sample, vectorize_tree
@@ -170,6 +171,28 @@ class ApproxNeuraLCBV2(BanditAlgorithm):
             # print(lcb)
             acts.append( jnp.argmax(lcb, axis=1)) 
         return jnp.hstack(acts)
+
+        
+        # def process(i):
+        #     ctxs = contexts[i * cs: (i+1) * cs,:] 
+        #     lcb = []
+        #     for a in range(self.hparams.num_actions):
+        #         actions = jnp.ones(shape=(ctxs.shape[0],)) * a 
+
+        #         f = self.nn.out(self.nn.params, ctxs, actions) # (num_samples, 1)
+        #         # g = self.nn.grad_out(self.nn.params, convoluted_contexts) / jnp.sqrt(self.nn.m) # (num_samples, p)
+        #         g = self.nn.grad_out(self.nn.params, ctxs, actions) / jnp.sqrt(self.nn.m)
+        #         gAg = jnp.sum( jnp.square(g) / self.diag_Lambda[a][:], axis=-1) # (None, p) -> (None,)
+
+        #         cnf = jnp.sqrt(gAg) # (num_samples,)
+        #         lcb_a = f.ravel() - self.hparams.beta * cnf.ravel()  # (num_samples,)
+        #         lcb.append(lcb_a.reshape(-1,1)) 
+        #     lcb = jnp.hstack(lcb) 
+        #     # print(lcb)
+        #     return jnp.argmax(lcb, axis=1)
+    
+        # acts = Parallel(n_jobs=50,prefer="threads")(delayed(process)(i) for i in range(num_chunks))
+        # return jnp.hstack(acts)
 
     def update_buffer(self, contexts, actions, rewards): 
         self.data.add(contexts, actions, rewards)

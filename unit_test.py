@@ -2,7 +2,8 @@ import jax
 import jax.numpy as jnp 
 import optax 
 from easydict import EasyDict as edict
-import numpy as np 
+import numpy as np
+import time  
 
 from algorithms.lin_lcb import test_LinLCB
 from algorithms.kern_lcb import test_KernLCB
@@ -11,7 +12,7 @@ from algorithms.neural_bandit_model import NeuralBanditModelV2
 from algorithms.neural_offline_bandit import ExactNeuraLCBV2, NeuralGreedyV2, ApproxNeuraLCBV2
 from core.bandit_dataset import BanditDataset
 
-from core.utils import action_convolution, inv_sherman_morrison, inv_sherman_morrison_single_sample
+from core.utils import action_convolution, inv_sherman_morrison, inv_sherman_morrison_single_sample, sample_offline_policy
 
 
 def test_NeuralLinLCB():
@@ -60,6 +61,22 @@ def test_action_convolution():
     print(convoluted_contexts)
     print(actions)
     print(contexts)
+
+def test_sample_offline_policy():
+    context_dim = 3 
+    num_actions = 2 
+    num_contexts = 4
+
+    key = jax.random.PRNGKey(0) 
+    key, subkey = jax.random.split(key)
+
+    contexts = jax.random.normal(key, (num_contexts,context_dim))
+    rewards = jax.random.normal(subkey, (num_contexts,num_actions))
+
+    actions = sample_offline_policy(mean_rewards=rewards, num_contexts=num_contexts, num_actions=num_actions, pi='online', 
+                contexts=contexts, rewards=rewards)
+
+    print(actions)
 
 def test_NeuralBanditModelV2():
     hparams = edict({
@@ -189,6 +206,7 @@ def test_NeuralBanditModelV2():
 
     ## Test ApproxNeuraLCBV2
     algo = ApproxNeuraLCBV2(hparams)
+    algo.update_buffer(contexts,actions,rewards)
     algo.update(contexts, actions, rewards)
     print(algo.diag_Lambda.shape)
 
@@ -222,6 +240,76 @@ def test_inv_sherman_morrison():
     # print(D) 
     # print(D.T)
      
+def test_ApproxNeuraLCBV2():
+    context_dim = 784 
+    num_actions = 10 
+    hparams = edict({
+        'layer_sizes': [100,100], 
+        's_init': 1, 
+        'activation': jax.nn.relu, 
+        'layer_n': True,
+        'seed': 0,
+        'context_dim': context_dim, 
+        'num_actions': num_actions, 
+        'beta': 0.1, # [0.01, 0.05, 0.1, 0.5, 1, 5, 10]
+        'lambd': 1e-4, # regularization param: [0.1m, m, 10 m  ]
+        'lr': 1e-4, 
+        'lambd0': 0.1, # shoud be lambd/m in theory but we fix this at 0.1 for simplicity and mainly focus on tuning beta 
+        'verbose': False, 
+        'batch_size': 50,
+        'freq_summary': 100, 
+        'chunk_size': 1, 
+        'num_steps': 100,
+        'test_freq': 100,  
+        'buffer_s': -1, 
+        'data_rand': True,
+        'debug_mode': 'full' # simple/full
+    })
+    ## Data 
+    context_dim = hparams.context_dim
+    num_actions = hparams.num_actions 
+    num_contexts = 5
+    num_test_contexts = 1000
+
+    key = jax.random.PRNGKey(0) 
+    key, subkey = jax.random.split(key)
+
+    contexts = jax.random.normal(key, (num_contexts,context_dim))
+    actions = jax.random.randint(subkey, (num_contexts,), minval=0, maxval = num_actions)
+    key, subkey = jax.random.split(key)
+    rewards = jax.random.normal(key, (num_contexts,)) 
+
+    algo = ApproxNeuraLCBV2(hparams)
+    algo.update_buffer(contexts,actions,rewards)
+    # algo.update(contexts, actions, rewards)
+    print(algo.diag_Lambda)
+
+    test_contexts = jax.random.normal(key, (num_test_contexts,context_dim))
+    test_actions = jax.random.randint(subkey, (num_test_contexts,1), minval=0, maxval = num_actions)
+    # t1 = time.time()
+    # conv_actions = action_convolution(test_contexts, test_actions,num_actions)
+    # print(time.time() - t1)
+    # actions = jnp.ones(shape=(ctxs.shape[0],)) * a 
+
+    # for _ in range(5):
+    #     t1 = time.time()
+    #     f = algo.nn.out(algo.nn.params, test_contexts, test_actions) # (num_samples, 1)
+    #     t2 = time.time()
+    #     # g = self.nn.grad_out(self.nn.params, convoluted_contexts) / jnp.sqrt(self.nn.m) # (num_samples, p)
+    #     g = algo.nn.grad_out(algo.nn.params, test_contexts, test_actions) / jnp.sqrt(algo.nn.m)
+    #     t3 = time.time()
+    #     gAg = jnp.sum( jnp.square(g) / algo.diag_Lambda[0][:], axis=-1) 
+    #     t4 = time.time()
+    #     cnf = jnp.sqrt(gAg) # (num_samples,)
+    #     lcb_a = f.ravel() - algo.hparams.beta * cnf.ravel()  # (num_samples,)
+    #     t5 = time.time()
+    #     print(t2-t1,t3-t2, t4-t3, t5-t4)
+
+    start = time.time()
+    pred_actions = algo.sample_action(test_contexts) 
+    # print(pred_actions)
+    elapsed_time = time.time() - start 
+    print(elapsed_time)
 
 
 if __name__ == '__main__':
@@ -229,5 +317,7 @@ if __name__ == '__main__':
     # test_KernLCB()
     # test_NeuralLinLCB()
     # test_action_convolution()
-    test_NeuralBanditModelV2()
+    # test_NeuralBanditModelV2()
     # test_inv_sherman_morrison()
+    # test_ApproxNeuraLCBV2()
+    test_sample_offline_policy()

@@ -63,6 +63,10 @@ def main(unused_argv):
         policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.eps)
     elif FLAGS.policy == 'subset':
         policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.subset_ratio)
+    elif FLAGS.policy == 'online':
+        policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.eps) 
+    else:
+        raise NotImplementedError('{} not implemented'.format(FLAGS.policy))
 
     dataclasses = {'mushroom':MushroomData, 'jester':JesterData, 'statlog':StatlogData, 'covertype':CoverTypeData, 'stock': StockData,
             'adult': AdultData, 'census': CensusData, 'mnist': MnistData
@@ -78,7 +82,10 @@ def main(unused_argv):
     else:
         raise NotImplementedError
 
-
+    if FLAGS.data_type == 'mnist': # Use 1000 test points for mnist 
+        FLAGS.num_test_contexts = 1000  
+        FLAGS.test_freq = 100
+        FLAGS.chunk_size = 1
     dataset = data.reset_data()
     context_dim = dataset[0].shape[1] 
     num_actions = data.num_actions 
@@ -184,7 +191,15 @@ def main(unused_argv):
             hparams.beta, lin_hparams.rbf_sigma, lin_hparams.max_num_sample
         )
 
+    if FLAGS.algo_group == 'neurallinlcb': # Tune NeuralLinLCB seperately  
+        algos = [
+            UniformSampling(lin_hparams),
+            ApproxNeuralLinLCBJointModel(hparams)
+        ]
 
+        algo_prefix = 'neurallinlcb-gridsearch_m={}_layern={}_beta={}_lambda0={}'.format(
+            min(hparams.layer_sizes), hparams.layer_n, hparams.beta, hparams.lambd0
+        )
     #==============================
     # Runner 
     #==============================

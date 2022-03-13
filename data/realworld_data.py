@@ -71,6 +71,13 @@ class MnistData(object):
             contexts, labels = remove_underrepresented_classes(contexts, labels)
         self.contexts, self.mean_rewards = classification_to_bandit_problem(contexts, labels, num_actions)
 
+        # test
+        test_contexts = test_dataset.data.view([-1,context_dim]).numpy()
+        test_labels = test_dataset.targets.numpy()
+        if remove_underrepresented:
+            test_contexts, test_labels = remove_underrepresented_classes(test_contexts, test_labels)
+        self.test_contexts, self.test_mean_rewards = classification_to_bandit_problem(test_contexts, test_labels, num_actions)
+
         reward_type = 'deterministic'
         print('{}: num_actions: {} | total_samples: {} | context_dim: {} | reward_type: {}'.format(
             self.name, num_actions, self.num_samples, context_dim, reward_type
@@ -81,6 +88,11 @@ class MnistData(object):
     def num_samples(self):
         return self.contexts.shape[0]
 
+
+    @property 
+    def num_test_samples(self):
+        return self.test_contexts.shape[0]
+
     def reset_data(self, sim_id=0):
         # Load meta-data to generate dataset
         indices = np.load('data/meta/indices_{}.npy'.format(sim_id)) # random permutation of np.arange(100000)
@@ -88,7 +100,7 @@ class MnistData(object):
 
         # Generate inds
         indices = indices % self.num_samples
-        test_indices = test_indices % self.num_samples
+        test_indices = test_indices % self.num_test_samples
 
         if self.num_contexts > self.num_samples:
             ind = indices[:self.num_contexts]
@@ -106,11 +118,12 @@ class MnistData(object):
             test_ind = test_indices[i[:self.num_test_contexts]]
 
         contexts, mean_rewards = self.contexts[ind,:], self.mean_rewards[ind,:] 
-        test_contexts, mean_test_rewards = self.contexts[test_ind,:], self.mean_rewards[test_ind,:]
+        test_contexts, mean_test_rewards = self.test_contexts[test_ind,:], self.test_mean_rewards[test_ind,:]
 
-        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
         #create rewards
         rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r,contexts,rewards)
+
         dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 
@@ -194,9 +207,6 @@ class MushroomData(object):
         mean_eat_reward = mean_eat_reward.values.reshape((self.num_test_contexts, 1))
         mean_test_rewards = np.hstack((no_eat_reward, mean_eat_reward))
 
-        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-
-
         # create rewards
         no_eat_reward = self.r_noeat * np.ones((self.num_contexts, 1))
         random_poison = np.random.choice([self.r_eat_poison_bad, self.r_eat_poison_good],
@@ -205,6 +215,7 @@ class MushroomData(object):
         eat_reward += np.multiply(random_poison, self.df.iloc[ind, 1])
         eat_reward = eat_reward.values.reshape((self.num_contexts, 1))
         rewards = np.hstack((no_eat_reward, eat_reward))
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r,contexts,rewards)
 
         dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
@@ -356,9 +367,10 @@ class StatlogData(object):
         contexts, mean_rewards = self.contexts[ind,:], self.mean_rewards[ind,:] 
         test_contexts, mean_test_rewards = self.contexts[test_ind,:], self.mean_rewards[test_ind,:]
 
-        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
         #create rewards
         rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r, contexts, rewards)
+
         dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 
@@ -593,9 +605,10 @@ class AdultData(object):
         mean_rewards = self.rewards[ind,:] 
         test_contexts = self.contexts[test_ind,:]
         mean_test_rewards = self.rewards[test_ind,:]
-        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
         #create rewards
         rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r, contexts, rewards)
+
         dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 

@@ -17,6 +17,12 @@ from data.synthetic_data import SyntheticData
 
 from absl import flags, app
 import os 
+# os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+# os.environ['TF_FORCE_UNIFIED_MEMORY'] = '1'
+# try:
+#     jnp.linalg.qr(jnp.array([[0, 1], [1, 1]]))
+# except RuntimeError:
+#     pass 
 
 FLAGS = flags.FLAGS 
 
@@ -63,6 +69,10 @@ def main(unused_argv):
         policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.eps)
     elif FLAGS.policy == 'subset':
         policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.subset_ratio)
+    elif FLAGS.policy == 'online':
+        policy_prefix = '{}{}'.format(FLAGS.policy, FLAGS.eps) 
+    else:
+        raise NotImplementedError('{} not implemented'.format(FLAGS.policy))
 
     data = SyntheticData(num_contexts=FLAGS.num_contexts,
                     num_test_contexts=FLAGS.num_test_contexts, 
@@ -104,7 +114,7 @@ def main(unused_argv):
             'context_dim': hparams.context_dim, 
             'num_actions': hparams.num_actions, 
             'lambd0': hparams.lambd0, 
-            'beta': hparams.beta, 
+            'beta': hparams.beta,  
             'rbf_sigma': FLAGS.rbf_sigma, # 0.1, 1, 10
             'max_num_sample': 1000 
         }
@@ -173,6 +183,17 @@ def main(unused_argv):
         algo_prefix = 'kern-gridsearch_beta={}_rbf-sigma={}_maxnum={}'.format(
             hparams.beta, lin_hparams.rbf_sigma, lin_hparams.max_num_sample
         )
+
+    if FLAGS.algo_group == 'neurallinlcb': # Tune NeuralLinLCB seperately  
+        algos = [
+            UniformSampling(lin_hparams),
+            ApproxNeuralLinLCBJointModel(hparams)
+        ]
+
+        algo_prefix = 'neurallinlcb-gridsearch_m={}_layern={}_beta={}_lambda0={}'.format(
+            min(hparams.layer_sizes), hparams.layer_n, hparams.beta, hparams.lambd0
+        )
+
 
  
     #==============================

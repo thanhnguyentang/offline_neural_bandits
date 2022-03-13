@@ -116,10 +116,9 @@ class SyntheticData(object):
 
         mean_rewards = h(contexts)
         mean_test_rewards = h(test_contexts)
-
-        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r)
-
         rewards = mean_rewards + self.noise_std * np.random.normal(size=mean_rewards.shape)
+        actions = sample_offline_policy(mean_rewards, self.num_contexts, self.num_actions, self.pi, self.eps, self.subset_r, contexts, rewards)
+
         dataset = (contexts, actions, rewards, test_contexts, mean_test_rewards) 
         return dataset 
 

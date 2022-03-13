@@ -3,6 +3,7 @@
 import numpy as np
 from tqdm import tqdm
 from timeit import timeit 
+import time 
 
 def action_stats(actions, num_actions):
     """Compute the freq of each action.
@@ -84,7 +85,9 @@ def contextual_bandit_runner(algos, data, \
                                 sim+1, num_sim,  i, cmab.num_contexts,
                                 algo.name, test_subopt, action_acc))
                     else:
+                        t1 = time.time()
                         test_actions = algo.sample_action(cmab.test_contexts) 
+                        t2 = time.time()
                         sel_vals = cmab.test_mean_rewards[np.arange(cmab.num_test_contexts), test_actions.ravel()]
                         if normalize:
                             test_subopt = np.mean(1 - sel_vals / opt_vals) 
@@ -93,9 +96,9 @@ def contextual_bandit_runner(algos, data, \
                         action_acc = action_accuracy(test_actions.ravel(), opt_actions.ravel()) 
 
                         if verbose: 
-                            print('[sim: {}/{} | iter: {}/{}] {} | regret: {} | acc: {} | '.format(
+                            print('[sim: {}/{} | iter: {}/{}] {} | regret: {} | acc: {} | test_time: {} '.format(
                                 sim+1, num_sim,  i, cmab.num_contexts,
-                                algo.name, test_subopt, action_acc))
+                                algo.name, test_subopt, action_acc, t2-t1))
                             if debug: 
                                 sel_stats = action_stats(test_actions.ravel(), cmab.num_actions) 
                                 opt_stats = action_stats(opt_actions.ravel(), cmab.num_actions)
