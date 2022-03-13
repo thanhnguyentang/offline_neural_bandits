@@ -25,16 +25,14 @@ ICLR 2022. `NeuraLCB` is a provably and computationally efficient offline policy
 
 ## Bibliography
 ```
-@inproceedings{thanh_iclr22,
-  author    = {Thanh Nguyen{-}Tang and
-               Sunil Gupta and
-               A. Tuan Nguyen and
+@inproceedings{nguyen-tang2022offline,
+title      =  {Offline Neural Contextual Bandits: Pessimism, Optimization and Generalization},
+author     =  {Thanh Nguyen-Tang and 
+               Sunil Gupta and 
+               A. Tuan Nguyen and 
                Svetha Venkatesh},
-  title     = {Offline Neural Contextual Bandits: Pessimism, Optimization and Generalization},
-  booktitle = {10th International Conference on Learning Representations, {ICLR} 2022,
-               Virtual, April 25-29, 2022},
-  publisher = {OpenReview.net},
-  year      = {2022},
-  url       = {https://openreview.net/forum?id=sPIFuucA3F},
+booktitle  =  {International Conference on Learning Representations},
+year       =  {2022},
+url        =  {https://openreview.net/forum?id=sPIFuucA3F}
 }
 ```
